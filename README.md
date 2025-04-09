@@ -57,11 +57,6 @@ precek/
    npm install
    ```
 
-3. Create a `.env` file in the root directory with the following content:
-   ```
-   OPENROUTER_API_KEY=your_openrouter_api_key
-   ```
-
 ### Running the App
 
 ```bash
