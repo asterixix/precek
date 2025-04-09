@@ -3,6 +3,13 @@ const DB_NAME = 'precekDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'processedData';
 
+// Create database table (this is automatically handled by initDB, but exported for compatibility)
+const createTable = async () => {
+  // This function is essentially a wrapper around initDB
+  // since IndexedDB tables (object stores) are created during database initialization
+  return await initDB();
+};
+
 // Initialize the database
 const initDB = () => {
   return new Promise((resolve, reject) => {
@@ -255,4 +262,4 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export { insertData, getAllData, getDataByType, exportToCSV, clearAllData };
+export { insertData, getAllData, getDataByType, exportToCSV, clearAllData, createTable };
