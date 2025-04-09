@@ -30,7 +30,8 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies 📦
-        run: npm ci
+        run: npm ci --legacy-peer-deps
+        # --legacy-peer-deps is used to avoid peer dependency issues with Next.js
 
       - name: Build 🏗️
         run: npm run build
