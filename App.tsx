@@ -53,7 +53,7 @@ function App(): React.JSX.Element {
         <Button title="Process Video" onPress={handleProcessVideo} />
         <Button title="Export to CSV" onPress={handleExportToCSV} />
         <Text>{result}</Text>
-        <DataVisualization chartType="line" />
+        <DataVisualization data={[]} aframeLoaded={true} />
       </View>
     </ScrollView>
   );
