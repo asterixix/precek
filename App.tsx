@@ -17,7 +17,7 @@ function App(): React.JSX.Element {
 
   const handleProcessText = async () => {
     const processedText = await processText(inputText);
-    setResult(processedText);
+    setResult(processedText.processingResult || JSON.stringify(processedText));
   };
 
   const handleProcessImage = async () => {
