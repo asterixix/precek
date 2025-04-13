@@ -27,13 +27,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-
+          cache: 'npm'      
+      
       - name: Install Dependencies 📦
         run: npm ci --legacy-peer-deps
-        # --legacy-peer-deps is used to avoid peer dependency issues with Next.js      - name: Build 🏗️
+        # --legacy-peer-deps is used to avoid peer dependency issues with Next.js
         
-      - name: Build 
+      - name: Build 🏗️
         run: npm run build
         
       - name: Upload artifact
