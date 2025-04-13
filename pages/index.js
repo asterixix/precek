@@ -14,6 +14,7 @@ import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Divider from '@mui/material/Divider';
 import Container from '@mui/material/Container';
+import Alert from '@mui/material/Alert';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
 import VideocamIcon from '@mui/icons-material/Videocam';
@@ -360,14 +361,22 @@ function HomePage() {
       setError('Please enter valid API keys. OpenAI keys start with "sk-" and OpenRouter keys start with "sk-or-"');
       return;
     }
-
+    
     // Save to localStorage for future sessions
     if (openAIKey) localStorage.setItem('openai_api_key', openAIKey);
     if (openRouterKey) localStorage.setItem('openrouter_api_key', openRouterKey);
 
-    // Update environment variables for the current session (via window object)
-    if (openAIKey) window.process = { ...window.process, env: { ...window.process?.env, NEXT_PUBLIC_OPENAI_API_KEY: openAIKey } };
-    if (openRouterKey) window.process = { ...window.process, env: { ...window.process?.env, OPENROUTER_API_KEY: openRouterKey } };
+    // Set global variables that will be accessed by the multimedia processor
+    if (typeof window !== 'undefined') {
+      window.NEXT_PUBLIC_OPENAI_API_KEY = openAIKey || '';
+      window.OPENROUTER_API_KEY = openRouterKey || '';
+      
+      // Also explicitly set these as window properties for consistent access
+      window.__PRECEK_API_KEYS = {
+        openai: openAIKey || '',
+        openrouter: openRouterKey || '',
+      };
+    }
 
     setKeysConfigured(true);
     setShowApiForm(false);

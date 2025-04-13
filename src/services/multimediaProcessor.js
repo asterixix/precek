@@ -226,15 +226,43 @@ const processText = async (text) => {
   }
 };
 
+// Helper function to get API keys from all possible sources
+const getAPIKeys = () => {
+  // Check for keys in our specific global object first (most reliable method)
+  if (typeof window !== 'undefined' && window.__PRECEK_API_KEYS) {
+    const precekKeys = window.__PRECEK_API_KEYS;
+    if (precekKeys.openai || precekKeys.openrouter) {
+      return {
+        openAIApiKey: precekKeys.openai || '',
+        openRouterApiKey: precekKeys.openrouter || ''
+      };
+    }
+  }
+  
+  // Fall back to checking other sources
+  const openAIApiKey = 
+    (typeof window !== 'undefined' && window.NEXT_PUBLIC_OPENAI_API_KEY) ||
+    process.env.NEXT_PUBLIC_OPENAI_API_KEY || 
+    (typeof window !== 'undefined' && localStorage.getItem('openai_api_key')) || 
+    '';
+  
+  const openRouterApiKey = 
+    (typeof window !== 'undefined' && window.OPENROUTER_API_KEY) ||
+    process.env.OPENROUTER_API_KEY || 
+    (typeof window !== 'undefined' && localStorage.getItem('openrouter_api_key')) || 
+    '';
+    
+  return { openAIApiKey, openRouterApiKey };
+};
+
 // Function to call relevant API for processing based on media type
 const fetchAIProcessing = async (mediaType, content, filename = '') => {
-  // Get API keys from environment variables
-  const openAIApiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  // Get API keys using our helper function
+  const { openAIApiKey, openRouterApiKey } = getAPIKeys();
 
-  // Ensure we have an API key
+  // Ensure we have at least one API key
   if (!openAIApiKey && !openRouterApiKey) {
-    console.error('API key not found in environment variables');
+    console.error('API key not found in any available source');
     throw new Error('API key is required for media processing');
   }
 
