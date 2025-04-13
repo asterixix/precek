@@ -31,14 +31,22 @@ jobs:
 
       - name: Install Dependencies 📦
         run: npm ci --legacy-peer-deps
-        # --legacy-peer-deps is used to avoid peer dependency issues with Next.js
-
-      - name: Build 🏗️
+        # --legacy-peer-deps is used to avoid peer dependency issues with Next.js      - name: Build 🏗️
+        
+      - name: Build 
         run: npm run build
+      
+      - name: Create .nojekyll file 📄
+        run: touch out/.nojekyll
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
         
       - name: Deploy 🚀
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          folder: out  # Next.js static export path
-          branch: gh-pages
-          clean: true  # Automatically remove deleted files from the deployment branch
+        id: deployment
+        uses: actions/deploy-pages@v4
+        
+      - name: Output deployment URL
+        run: echo "Deployed to ${{ steps.deployment.outputs.page_url }}"
