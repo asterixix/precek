@@ -1,13 +1,14 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
-  // Enable static exports for GitHub Pages
-  output: 'export',
-  // Set the base path for GitHub Pages
-  basePath: process.env.NODE_ENV === 'production' ? '/precek' : '',
-  // Disable image optimization for static export
+  // Use standalone output for optimized deployments
+  output: 'standalone',
+  // Set the base path for GitHub Pages (only when using export)
+  // basePath: process.env.NODE_ENV === 'production' ? '/precek' : '',
+  // Image optimization settings
   images: {
-    unoptimized: true,
+    // We can now use image optimization with standalone output
+    unoptimized: false,
   },
   // Enable React Native Web
   reactStrictMode: true,
