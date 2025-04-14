@@ -161,6 +161,9 @@ function HomePage() {
           }
 
           // Process the extracted text, passing keys
+          // *** Error Note: The 'TypeError: (0 , l.addData) is not a function' likely originates ***
+          // *** from within this 'processText' function or the database functions it calls. ***
+          // *** Check the implementation in '/src/services/multimediaProcessor.js' and '/src/services/database.js'. ***
           const response = await processText(text, file.name, currentKeys); // Pass keys here
           if (response && response.error) {
               throw new Error(response.processingResult || `Processing failed for ${file.name}`);
@@ -168,6 +171,8 @@ function HomePage() {
           processedCount++;
         } catch (fileError) {
           console.error(`Error processing file ${file.name}:`, fileError);
+          // *** Error Note: The error caught here might be the 'addData is not a function' error ***
+          // *** propagated from the 'processText' call above. ***
           errorCount++;
            // Propagate API key errors immediately
           if (fileError.message.includes('API key is invalid') || fileError.message.includes('unauthorized') || fileError.message.includes('401')) {
@@ -199,6 +204,8 @@ function HomePage() {
          setKeysConfigured(false);
          setShowApiForm(true);
        } else {
+          // *** Error Note: This catch block might handle the 'addData is not a function' error ***
+          // *** if it was re-thrown from the inner catch block. ***
           setError(`Failed to process files: ${err.message || 'Unknown error'}`);
        }
     } finally {
