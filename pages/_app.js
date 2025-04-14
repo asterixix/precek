@@ -4,6 +4,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import muiTheme from '../src/lib/mui-theme';
+import Footer from '../src/components/Footer';
 import '../src/styles/globals.css';
 
 function MyApp({ Component, pageProps }) {
@@ -34,14 +35,15 @@ function MyApp({ Component, pageProps }) {
   return (
     <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
       <MuiThemeProvider theme={muiTheme}>
-        <CssBaseline />
-        <div className="min-h-screen bg-background font-sans antialiased">
+        <CssBaseline />        <div className="min-h-screen bg-background font-sans antialiased flex flex-col">
           <Head>
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <meta charSet="utf-8" />
             <title>Precek - Text, Image, Audio, and Video Processing</title>
-          </Head>
-          <Component {...pageProps} />
+          </Head>          <div className="flex-grow">
+            <Component {...pageProps} />
+          </div>
+          <Footer />
         </div>
       </MuiThemeProvider>
     </NextThemesProvider>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { processText, processImage, processAudio, processVideo } from '/src/services/multimediaProcessor';
 import { getAllData, exportToCSV, clearAllData } from '/src/services/database';
+import ChangelogViewer from '/src/components/ChangelogViewer';
 
 // Import Material UI components
 import Button from '@mui/material/Button';
@@ -556,8 +557,7 @@ function HomePage() {
                   sx={{ mr: 1, mb: 1 }}
                 >
                   Export to CSV
-                </Button>
-                <Button 
+                </Button>                <Button 
                   onClick={handleClearData} 
                   variant="contained"
                   color="error" 
@@ -569,7 +569,16 @@ function HomePage() {
               </Box>
             </Box>
           </CardContent>
-        </Card>        {error && (
+        </Card>
+        
+        {/* Display Changelog */}
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent>
+            <ChangelogViewer />
+          </CardContent>
+        </Card>
+        
+        {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
