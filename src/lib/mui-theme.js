@@ -1,51 +1,101 @@
 import { createTheme } from '@mui/material/styles';
 
-// Create a theme instance that integrates with your existing tailwind theme
-const muiTheme = createTheme({
-  palette: {
-    primary: {
-      main: 'hsl(222.2, 47.4%, 11.2%)', // Based on your existing primary color
-      light: 'hsl(210, 40%, 98%)',
-      dark: 'hsl(217.2, 32.6%, 17.5%)',
-    },
-    secondary: {
-      main: 'hsl(210, 40%, 96.1%)',
-      light: 'hsl(214.3, 31.8%, 91.4%)',
-      dark: 'hsl(215.4, 16.3%, 46.9%)',
-    },
-    error: {
-      main: 'hsl(0, 62.8%, 30.6%)',
-    },
-    background: {
-      default: 'hsl(0, 0%, 100%)',
-      paper: 'hsl(0, 0%, 100%)',
-      dark: 'hsl(222.2, 84%, 4.9%)',
-    },
-    text: {
-      primary: 'hsl(222.2, 84%, 4.9%)',
-      secondary: 'hsl(215.4, 16.3%, 46.9%)',
-    },
+// Define palettes matching Tailwind CSS variables from globals.css
+// WCAG 1.4.3/1.4.6: Ensure these color combinations meet contrast requirements (AA minimum).
+// Use tools like browser devtools or online checkers to verify contrast ratios.
+const lightPalette = {
+  mode: 'light',
+  primary: {
+    main: 'hsl(222.2, 47.4%, 11.2%)', // Matches --primary
+    contrastText: 'hsl(210, 40%, 98%)', // Matches --primary-foreground
   },
+  secondary: {
+    main: 'hsl(210, 40%, 96.1%)', // Matches --secondary
+    contrastText: 'hsl(222.2, 47.4%, 11.2%)', // Matches --secondary-foreground
+  },
+  error: {
+    main: 'hsl(0, 84.2%, 60.2%)', // Matches --destructive
+    contrastText: 'hsl(210, 40%, 98%)', // Matches --destructive-foreground
+  },
+  background: {
+    default: 'hsl(0, 0%, 100%)', // Matches --background
+    paper: 'hsl(0, 0%, 100%)', // Matches --card
+  },
+  text: {
+    primary: 'hsl(222.2, 84%, 4.9%)', // Matches --foreground
+    secondary: 'hsl(215.4, 16.3%, 46.9%)', // Matches --muted-foreground
+  },
+  divider: 'hsl(214.3, 31.8%, 91.4%)', // Matches --border
+};
+
+// WCAG 1.4.3/1.4.6: Ensure these color combinations meet contrast requirements (AA minimum).
+const darkPalette = {
+  mode: 'dark',
+  primary: {
+    main: 'hsl(210, 40%, 98%)', // Matches .dark --primary
+    contrastText: 'hsl(222.2, 47.4%, 11.2%)', // Matches .dark --primary-foreground
+  },
+  secondary: {
+    main: 'hsl(217.2, 32.6%, 17.5%)', // Matches .dark --secondary
+    contrastText: 'hsl(210, 40%, 98%)', // Matches .dark --secondary-foreground
+  },
+  error: {
+    main: 'hsl(0, 62.8%, 30.6%)', // Matches .dark --destructive
+    contrastText: 'hsl(210, 40%, 98%)', // Matches .dark --destructive-foreground
+  },
+  background: {
+    default: 'hsl(222.2, 84%, 4.9%)', // Matches .dark --background
+    paper: 'hsl(222.2, 84%, 4.9%)', // Matches .dark --card
+  },
+  text: {
+    primary: 'hsl(210, 40%, 98%)', // Matches .dark --foreground
+    secondary: 'hsl(215, 20.2%, 65.1%)', // Matches .dark --muted-foreground
+  },
+  divider: 'hsl(217.2, 32.6%, 17.5%)', // Matches .dark --border
+};
+
+// Common settings for both themes
+const commonSettings = {
   typography: {
-    fontFamily: 'var(--font-sans)',
+    fontFamily: '"Noto Sans", sans-serif', // Ensure consistency with Tailwind and CSS
   },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none',
-          borderRadius: '0.375rem',
+          textTransform: 'none', // Keep custom button styling
+          borderRadius: 'var(--radius)', // Use Tailwind radius variable
         },
       },
     },
     MuiPaper: {
       styleOverrides: {
         root: {
-          borderRadius: '0.5rem',
+          borderRadius: 'var(--radius)', // Use Tailwind radius variable
+          backgroundImage: 'none', // Prevent potential gradient issues
         },
       },
     },
+    MuiCard: {
+        styleOverrides: {
+            root: {
+                borderRadius: 'var(--radius)',
+                backgroundImage: 'none', // Ensure card background matches theme
+            }
+        }
+    },
+    // Add other component overrides if needed
   },
-});
+};
 
-export default muiTheme;
+// Function to create the theme based on the mode
+const getMuiTheme = (mode) => {
+  // Use the appropriate palette based on the mode passed from _app.js
+  const palette = mode === 'dark' ? darkPalette : lightPalette;
+  return createTheme({
+    palette: palette, // Apply the selected light/dark palette
+    ...commonSettings,
+  });
+};
+
+export default getMuiTheme;

@@ -38,8 +38,8 @@ local.properties
 # node.js
 #
 .env
-node_modules/
-.next/
+/node_modules/
+/.next/
 npm-debug.log
 yarn-error.log
 

@@ -31,13 +31,13 @@ const nextConfig = {
 
   // Add webpack config if needed for specific loaders or fallbacks
   webpack: (config, { isServer }) => {
-    // Example: Fallback for 'fs' module if used client-side (unlikely here)
-    // if (!isServer) {
-    //   config.resolve.fallback = {
-    //     ...config.resolve.fallback,
-    //     fs: false,
-    //   };
-    // }
+    // Add fallback for 'fs' module on the client side
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback, // Spread existing fallbacks
+        fs: false, // Tell webpack to ignore fs module on client-side
+      };
+    }
     return config;
   },
 };

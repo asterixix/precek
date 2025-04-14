@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Import useCallback
+import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 
 // Material UI components
@@ -6,28 +6,24 @@ import Box from '@mui/material/Box';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Typography from '@mui/material/Typography';
-import CircularProgress from '@mui/material/CircularProgress'; // For loading state
+import CircularProgress from '@mui/material/CircularProgress';
 
 // Import the hook
-import useTextAnalysis from '../hooks/useTextAnalysis'; // Add this line
+import useTextAnalysis from '../hooks/useTextAnalysis';
 
-// Import Tab Panel Components (Add others as they are created)
+// Import Tab Panel Components
+import OverviewSummaryTab from './OverviewSummaryTab'; // Import new component
 import WordFrequencyTab from './WordFrequencyTab';
 import SentimentAnalysisTab from './SentimentAnalysisTab';
-import TextRelationshipsTab from './TextRelationshipsTab'; // Import new component
-import TtrAnalysisTab from './TtrAnalysisTab'; // Import new component
-import ConcordanceTab from './ConcordanceTab'; // Import new component
-import TopicModelingTab from './TopicModelingTab'; // Import new component
+import TextRelationshipsTab from './TextRelationshipsTab';
+import TtrAnalysisTab from './TtrAnalysisTab';
+import ConcordanceTab from './ConcordanceTab';
+import TopicModelingTab from './TopicModelingTab';
+import PhrasesLinkTab from './PhrasesLinkTab'; // Import new component
 
-// Dynamically import components that might have issues with SSR or large size
-// ForceGraph is now inside TextRelationshipsTab, so dynamic import here might not be needed unless other large components are added.
-// const ForceGraph2D = dynamic(
-//   () => import('react-force-graph').then((mod) => mod.ForceGraph2D),
-//   { ssr: false, loading: () => <p>Loading graph...</p> } // Add loading state for dynamic import
-// );
-
-// Reusable TabPanel component (can be moved to utils)
+// Reusable TabPanel component
 function TabPanel(props) {
+  // ... existing TabPanel code ...
   const { children, value, index, ...other } = props;
   return (
     <div
@@ -45,36 +41,33 @@ function TabPanel(props) {
 const TextAnalysisVisualizations = ({ data }) => {
   const [activeTab, setActiveTab] = useState(0);
 
-  // Use the text analysis hook
-  // IMPORTANT: Ensure the 'data' prop passed to this component has a stable reference.
-  // If 'data' is recreated on every render in the parent, it will cause this hook
-  // and its effects to run repeatedly, leading to the 'Maximum update depth exceeded' error.
+  // Destructure the new data from the hook
   const {
+    overviewData, // Should now be populated by the hook
     wordFrequencyData,
     sentimentData,
     relationshipData,
     ttrData,
     concordanceData,
     topicModelData,
+    phraseLinkData, // Should now be populated by the hook
     isLoading,
-    searchConcordance // Function from the hook
+    searchConcordance
   } = useTextAnalysis(data);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
 
-  // Memoize the handler passed to ConcordanceTab.
-  // This depends on searchConcordance from the hook, which should be stable due to useCallback within the hook.
+  // Memoize the handler passed to ConcordanceTab
   const handleConcordanceSearch = useCallback((term) => {
-      if (searchConcordance) { // Check if the function exists before calling
+      if (searchConcordance) {
           searchConcordance(term);
       }
-  }, [searchConcordance]); // Dependency is the memoized function from the hook
+  }, [searchConcordance]);
 
-
-  // Show loading indicator centrally if analyses are running
-  if (isLoading && !concordanceData) { // Adjust loading condition if needed
+  // Adjust loading condition to check for overviewData
+  if (isLoading && !overviewData) { // Check if overviewData is loaded
       return (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
               <CircularProgress />
@@ -85,6 +78,7 @@ const TextAnalysisVisualizations = ({ data }) => {
 
   // Show message if no data is provided
   if (!data || data.length === 0) {
+      // ... existing no data message ...
       return (
           <Box sx={{ p: 3, textAlign: 'center' }}>
               <Typography color="text.secondary">No data available for analysis. Process some content first.</Typography>
@@ -103,46 +97,55 @@ const TextAnalysisVisualizations = ({ data }) => {
           scrollButtons="auto"
           aria-label="Text analysis tabs"
         >
-          <Tab label="Word Frequency" id="tab-0" aria-controls="tabpanel-0" />
-          <Tab label="Sentiment" id="tab-1" aria-controls="tabpanel-1" />
-          <Tab label="Relationships" id="tab-2" aria-controls="tabpanel-2" />
-          <Tab label="TTR" id="tab-3" aria-controls="tabpanel-3" />
-          <Tab label="Concordance" id="tab-4" aria-controls="tabpanel-4" />
-          <Tab label="Topics" id="tab-5" aria-controls="tabpanel-5" />
+          {/* Tabs including Overview and Phrase Links */}
+          <Tab label="Overview" id="tab-0" aria-controls="tabpanel-0" />
+          <Tab label="Word Frequency" id="tab-1" aria-controls="tabpanel-1" />
+          <Tab label="Sentiment" id="tab-2" aria-controls="tabpanel-2" />
+          <Tab label="Relationships" id="tab-3" aria-controls="tabpanel-3" />
+          <Tab label="TTR" id="tab-4" aria-controls="tabpanel-4" />
+          <Tab label="Concordance" id="tab-5" aria-controls="tabpanel-5" />
+          <Tab label="Topics" id="tab-6" aria-controls="tabpanel-6" />
+          <Tab label="Phrase Links" id="tab-7" aria-controls="tabpanel-7" />
         </Tabs>
       </Box>
 
-      {/* Render Tab Panels with extracted components */}
+      {/* Tab Panels */}
       <TabPanel value={activeTab} index={0}>
-        <WordFrequencyTab wordFrequencyData={wordFrequencyData} isLoading={isLoading} />
+        {/* Pass overviewData */}
+        <OverviewSummaryTab overviewData={overviewData} isLoading={isLoading} />
       </TabPanel>
 
       <TabPanel value={activeTab} index={1}>
-        <SentimentAnalysisTab sentimentData={sentimentData} isLoading={isLoading} />
+        <WordFrequencyTab wordFrequencyData={wordFrequencyData} isLoading={isLoading} />
       </TabPanel>
 
       <TabPanel value={activeTab} index={2}>
-        {/* Use the new TextRelationshipsTab component */}
-        <TextRelationshipsTab relationshipData={relationshipData} isLoading={isLoading} />
+        <SentimentAnalysisTab sentimentData={sentimentData} isLoading={isLoading} />
       </TabPanel>
 
       <TabPanel value={activeTab} index={3}>
-        {/* Use the new TtrAnalysisTab component */}
-        <TtrAnalysisTab ttrData={ttrData} isLoading={isLoading} />
+        <TextRelationshipsTab relationshipData={relationshipData} isLoading={isLoading} />
       </TabPanel>
 
       <TabPanel value={activeTab} index={4}>
-         {/* Pass the memoized handleConcordanceSearch */}
+        <TtrAnalysisTab ttrData={ttrData} isLoading={isLoading} />
+      </TabPanel>
+
+      <TabPanel value={activeTab} index={5}>
          <ConcordanceTab
             concordanceData={concordanceData}
-            onSearch={handleConcordanceSearch} // Pass the memoized handler
+            onSearch={handleConcordanceSearch}
             isLoading={isLoading}
          />
       </TabPanel>
 
-      <TabPanel value={activeTab} index={5}>
-         {/* Use the new TopicModelingTab component */}
+      <TabPanel value={activeTab} index={6}>
          <TopicModelingTab topicModelData={topicModelData} isLoading={isLoading} />
+      </TabPanel>
+
+      <TabPanel value={activeTab} index={7}>
+         {/* Pass phraseLinkData */}
+         <PhrasesLinkTab phraseLinkData={phraseLinkData} isLoading={isLoading} />
       </TabPanel>
 
     </Box>

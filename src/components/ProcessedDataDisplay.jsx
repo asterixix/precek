@@ -58,8 +58,9 @@ const ProcessedDataDisplay = ({
               <Card sx={{ overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
                  {/* Media Preview */}
                  {item.type === 'image' && item.data && (
-                    <Box sx={{ height: '10rem', bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      <Box component="img" src={item.data} alt="Processed" sx={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 100, overflow: 'hidden', mb: 1, border: theme => `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+                      {/* WCAG 1.1.1: Improved alt text. Consider making this dynamic based on image content or filename if possible. */}
+                      <Box component="img" src={item.data} alt={`Processed image: ${item.name || 'unnamed'}`} sx={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                     </Box>
                   )}
                   {item.type === 'audio' && item.data && (

@@ -178,7 +178,6 @@ export default function VisualizationPage() {
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
           <Tabs value={activeTab} onChange={handleChange} aria-label="visualization tabs">
             <Tab label="Text Analysis" id="tab-0" aria-controls="tabpanel-0" />
-            {aframeLoaded && <Tab label="VR Scene (A-Frame)" id="tab-1" aria-controls="tabpanel-1" />}
           </Tabs>
         </Box>
 
@@ -190,17 +189,6 @@ export default function VisualizationPage() {
             </TabPanel>
           </div>
         </Fade>
-
-        {aframeLoaded && (
-          <Fade in={activeTab === 1} timeout={500} unmountOnExit>
-             <div> {/* Wrap TabPanel content in a div for Fade transition */}
-              <TabPanel value={activeTab} index={1}>
-                {/* Conditionally render AFrameScene only when its tab is active and A-Frame is loaded */}
-                {activeTab === 1 && <AFrameScene data={data} />}
-              </TabPanel>
-            </div>
-          </Fade>
-        )}
 
       </Container>
     </>

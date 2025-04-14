@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'; // Import useMemo
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Sentiment from 'sentiment';
-// Note: Topic modeling logic might need more robust libraries for production
-// e.g., using server-side processing or WebAssembly-based libraries.
+import { automatedReadability } from 'automated-readability';
+import natural from 'natural'; // Import natural
 
 // Helper functions (keep outside or memoize if needed, but they seem pure)
 const cleanWord = (word) => word.toLowerCase().replace(/[.,;:!?()[\]{}'"]/g, '');
@@ -30,6 +30,8 @@ const useTextAnalysis = (data) => {
   const [concordanceData, setConcordanceData] = useState([]);
   const [ttrData, setTtrData] = useState({ ttr: 0, uniqueWords: 0, totalWords: 0 });
   const [topicModelData, setTopicModelData] = useState([]);
+  const [overviewData, setOverviewData] = useState(null); // Add state for overview data
+  const [phraseLinkData, setPhraseLinkData] = useState({ nodes: [], links: [] }); // Add state for phrase links
   const [isLoading, setIsLoading] = useState(false);
 
   // Memoize the combined text to avoid recalculating it multiple times
@@ -38,7 +40,7 @@ const useTextAnalysis = (data) => {
     return data.map(item => item.processingResult || item.content || '').join(' ');
   }, [data]);
 
-  // --- Processing Functions (Return results, don't set state) ---
+  // --- Processing Functions ---
 
   const calculateWordFrequency = useCallback((textData) => {
     const allText = textData
@@ -258,6 +260,99 @@ const useTextAnalysis = (data) => {
     return finalTopics; // Return the result
   }, [stopWords]); // Dependency is stable
 
+  // New function to calculate overview summary
+  const calculateOverviewSummary = useCallback((textData, combinedText, calculatedTtrData) => {
+    if (!textData || textData.length === 0 || !combinedText) {
+      return {
+        totalWords: 0,
+        totalPhrases: 0,
+        totalTexts: 0,
+        vocabularyDensity: 0,
+        readabilityIndex: null,
+        avgWordsPerSentence: 0,
+      };
+    }
+
+    const totalTexts = textData.length;
+    const { totalWords, ttr: vocabularyDensity } = calculatedTtrData; // Reuse TTR calculation
+
+    // Calculate Avg Words Per Sentence
+    const sentenceTokenizer = new natural.SentenceTokenizer();
+    const sentences = sentenceTokenizer.tokenize(combinedText);
+    const totalSentences = sentences.length > 0 ? sentences.length : 1; // Avoid division by zero
+    const avgWordsPerSentence = totalWords / totalSentences;
+
+    // Calculate Readability using automated-readability
+    let readabilityIndex = null;
+    if (totalWords > 0 && totalSentences > 0) { // Ensure counts are valid
+        try {
+            // Calculate character count (simple length)
+            const totalCharacters = combinedText.length;
+
+            // Prepare counts object for the library
+            const counts = {
+                sentence: totalSentences,
+                word: totalWords,
+                character: totalCharacters
+            };
+
+            // Calculate the Automated Readability Index (ARI)
+            readabilityIndex = automatedReadability(counts);
+
+        } catch (e) {
+            console.error("Error calculating automated readability:", e);
+            readabilityIndex = null; // Set to null if calculation fails
+        }
+    }
+
+
+    // Calculate Total Phrases (Example: Count common bigrams)
+    const wordTokenizer = new natural.WordTokenizer();
+    const words = wordTokenizer.tokenize(combinedText.toLowerCase())
+                               .filter(word => word.length > 1 && !stopWords.has(word)); // Basic filtering
+    const bigrams = natural.NGrams.bigrams(words);
+    const phraseCounts = bigrams.reduce((acc, phraseArr) => {
+        const phrase = phraseArr.join(' ');
+        acc[phrase] = (acc[phrase] || 0) + 1;
+        return acc;
+    }, {});
+    // Consider a phrase significant if it appears more than once (adjust threshold as needed)
+    const significantPhrases = Object.entries(phraseCounts).filter(([phrase, count]) => count > 1);
+    const totalPhrases = significantPhrases.length; // Count of unique significant phrases
+
+    // Prepare data for PhraseLinkTab (nodes = phrases, links = co-occurrence - simplified)
+    const phraseNodes = significantPhrases.slice(0, 50).map(([phrase, count]) => ({ // Limit nodes
+        id: phrase,
+        name: phrase,
+        val: count // Size node by frequency
+    }));
+    // Basic linking: link phrases that share a word (very simplified, needs refinement for real analysis)
+    const phraseLinks = [];
+    // This linking logic is placeholder - real co-occurrence analysis is more complex
+    /*
+    for (let i = 0; i < phraseNodes.length; i++) {
+        const words1 = phraseNodes[i].id.split(' ');
+        for (let j = i + 1; j < phraseNodes.length; j++) {
+            const words2 = phraseNodes[j].id.split(' ');
+            if (words1.some(w => words2.includes(w))) {
+                 phraseLinks.push({ source: phraseNodes[i].id, target: phraseNodes[j].id, value: 1 });
+            }
+        }
+    }
+    */
+
+
+    return {
+      totalWords,
+      totalPhrases,
+      totalTexts,
+      vocabularyDensity,
+      readabilityIndex, // This now holds the ARI score
+      avgWordsPerSentence,
+      phraseGraphData: { nodes: phraseNodes, links: phraseLinks } // Include graph data
+    };
+  }, [stopWords]); // Dependencies are stable
+
   // --- Main Effect ---
   useEffect(() => {
     // Check if data is valid
@@ -269,6 +364,8 @@ const useTextAnalysis = (data) => {
       setConcordanceData([]); // Reset concordance
       setTtrData({ ttr: 0, uniqueWords: 0, totalWords: 0 });
       setTopicModelData([]);
+      setOverviewData(null); // Reset overview
+      setPhraseLinkData({ nodes: [], links: [] }); // Reset phrase links
       setIsLoading(false); // Ensure loading is off
       return; // Exit early
     }
@@ -281,8 +378,10 @@ const useTextAnalysis = (data) => {
       const frequency = calculateWordFrequency(data);
       const sentiment = calculateSentimentAnalysis(data);
       const relationships = calculateRelationships(data);
-      const ttr = calculateTTR(allText);
+      const ttr = calculateTTR(allText); // Calculate TTR first
       const topics = calculateTopicModeling(allText);
+      // Calculate overview summary, passing calculated TTR data
+      const summary = calculateOverviewSummary(data, allText, ttr);
       // Calculate initial empty concordance - important not to trigger state update loop here
       const initialConcordance = calculateConcordance(allText, '');
 
@@ -290,8 +389,10 @@ const useTextAnalysis = (data) => {
       setWordFrequencyData(frequency);
       setSentimentData(sentiment);
       setRelationshipData(relationships);
-      setTtrData(ttr);
+      setTtrData(ttr); // Set TTR state
       setTopicModelData(topics);
+      setOverviewData(summary); // Set overview state
+      setPhraseLinkData(summary.phraseGraphData); // Set phrase link state
       setConcordanceData(initialConcordance); // Set initial empty concordance
 
     } catch (error) {
@@ -303,7 +404,7 @@ const useTextAnalysis = (data) => {
     }
     // Dependencies: Only 'data' and the memoized 'allText'.
     // The calculation functions are stable due to useCallback and stable dependencies.
-  }, [data, allText, calculateWordFrequency, calculateSentimentAnalysis, calculateRelationships, calculateConcordance, calculateTTR, calculateTopicModeling]);
+  }, [data, allText, calculateWordFrequency, calculateSentimentAnalysis, calculateRelationships, calculateConcordance, calculateTTR, calculateTopicModeling, calculateOverviewSummary]); // Add calculateOverviewSummary dependency
 
   // --- Concordance Search Function ---
   const searchConcordance = useCallback((term) => {
@@ -317,12 +418,14 @@ const useTextAnalysis = (data) => {
 
 
   return {
+    overviewData, // Return overview data
     wordFrequencyData,
     sentimentData,
     relationshipData,
     concordanceData,
     ttrData,
     topicModelData,
+    phraseLinkData, // Return phrase link data
     isLoading,
     searchConcordance,
   };

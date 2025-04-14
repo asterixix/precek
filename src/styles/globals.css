@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap'); /* Import Noto Sans */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -23,6 +25,7 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
+    --font-sans: "Noto Sans", sans-serif; /* Update font variable */
     --radius: 0.5rem;
   }
 
@@ -48,16 +51,59 @@
     --ring: 212.7 26.8% 83.9%;
   }
 
-  /* Add HeroUI specific styles */
+  /* Update base font */
   html {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-family: var(--font-sans); /* Use the CSS variable */
+    scroll-behavior: smooth; /* Optional: Smooth scrolling */
+    /* WCAG 2.4.11: Add padding for potential sticky headers */
+    /* Adjust value based on actual sticky header height if implemented */
+    scroll-padding-top: 6rem; /* Example value */
   }
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans); /* Ensure body also uses the variable */
   }
 
   * {
     @apply border-border;
   }
+
+  /* --- Accessibility Enhancement: Focus Visible --- */
+  /* Add a clear outline for keyboard focus, respecting theme colors */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-offset-2;
+    outline-color: transparent; /* Fallback */
+    ring-color: hsl(var(--ring)); /* Use Tailwind ring color variable */
+    ring-offset-color: hsl(var(--background)); /* Use Tailwind background color variable */
+  }
+
+  /* Ensure high-contrast focus ring in forced colors mode (Windows High Contrast) */
+  @media (forced-colors: active) {
+    *:focus-visible {
+      outline: 2px solid Highlight; /* Use system highlight color */
+      outline-offset: 2px;
+      ring-width: 0px; /* Disable ring in forced colors mode */
+    }
+  }
+  /* --- End Accessibility Enhancement --- */
 }
+
+/* --- Accessibility Enhancement: Reduced Motion --- */
+/* WCAG 2.2.2: Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto; /* Disable smooth scrolling */
+  }
+
+  *,
+  *::before,
+  *::after {
+    /* Disable animations and transitions */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* --- End Accessibility Enhancement --- */
