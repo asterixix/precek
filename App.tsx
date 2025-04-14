@@ -8,7 +8,6 @@
 import React, { useState } from 'react';
 import { TextInput, Button, Text, View, ScrollView } from 'react-native';
 import { processImage, processAudio, processVideo, processText } from './src/services/multimediaProcessor';
-import DataVisualization from './src/components/DataVisualization';
 import { createTable, exportToCSV } from './src/services/database';
 
 function App(): React.JSX.Element {
@@ -53,7 +52,6 @@ function App(): React.JSX.Element {
         <Button title="Process Video" onPress={handleProcessVideo} />
         <Button title="Export to CSV" onPress={handleExportToCSV} />
         <Text>{result}</Text>
-        <DataVisualization data={[]} aframeLoaded={true} />
       </View>
     </ScrollView>
   );

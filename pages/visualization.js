@@ -22,20 +22,6 @@ import Fade from '@mui/material/Fade';
 import TextAnalysisVisualizations from '/src/components/TextAnalysisVisualizations';
 import dynamic from 'next/dynamic';
 
-// Import DataVisualization dynamically to avoid SSR issues with A-Frame dependencies
-const DataVisualization = dynamic(
-  () => import('/src/components/DataVisualization'),
-  { 
-    ssr: false,
-    loading: () => (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '16rem' }}>
-        <CircularProgress size={32} />
-        <Typography variant="body1" sx={{ ml: 2 }}>Loading 3D visualization...</Typography>
-      </Box>
-    )
-  }
-);
-
 // Define a fallback spinner component using Material UI
 const FallbackSpinner = () => (
   <CircularProgress size={48} />
@@ -163,16 +149,14 @@ export default function VisualizationPage() {
         </Typography>
         
         <Box sx={{ width: '100%', mb: 4 }}>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs 
-              value={activeTab === 'overview' ? 0 : activeTab === 'textAnalysis' ? 1 : 2}
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>            <Tabs 
+              value={activeTab === 'overview' ? 0 : 1}
               onChange={(e, newValue) => {
-                setActiveTab(newValue === 0 ? 'overview' : newValue === 1 ? 'textAnalysis' : '3dVisualization');
+                setActiveTab(newValue === 0 ? 'overview' : 'textAnalysis');
               }}
             >
               <Tab label="Overview" />
               <Tab label="Text Analysis" />
-              <Tab label="3D Visualization" />
             </Tabs>
           </Box>
           
@@ -184,24 +168,8 @@ export default function VisualizationPage() {
               </Typography>
             </Grid>
           </TabPanel>
-          
-          <TabPanel value={activeTab === 'textAnalysis' ? 1 : -1} index={1}>
+            <TabPanel value={activeTab === 'textAnalysis' ? 1 : -1} index={1}>
             <TextAnalysisVisualizations data={data} />
-          </TabPanel>
-          
-          <TabPanel value={activeTab === '3dVisualization' ? 2 : -1} index={2}>
-            {aframeLoaded ? (
-              <Fade in={true} timeout={800}>
-                <div>
-                  <DataVisualization data={data} aframeLoaded={aframeLoaded} />
-                </div>
-              </Fade>
-            ) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '16rem' }}>
-                <CircularProgress size={32} />
-                <Typography variant="body1" sx={{ ml: 2 }}>Loading 3D environment...</Typography>
-              </Box>
-            )}
           </TabPanel>
         </Box>
         
