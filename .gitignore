@@ -38,6 +38,7 @@ local.properties
 # node.js
 #
 node_modules/
+.next/
 npm-debug.log
 yarn-error.log
 

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { processText, processImage, processAudio, processVideo } from '/src/services/multimediaProcessor';
 import { getAllData, exportToCSV, clearAllData } from '/src/services/database';
-import ChangelogViewer from '/src/components/ChangelogViewer';
 
 // Import Material UI components
 import Button from '@mui/material/Button';
@@ -91,6 +90,11 @@ function HomePage() {
       // Process text using AI
       const result = await processText(inputText);
       
+      // Check if there was an error
+      if (result.error) {
+        throw new Error(result.processingResult);
+      }
+      
       // Update the UI with processed data
       setResult(`Successfully processed text: "${inputText.substring(0, 30)}${inputText.length > 30 ? '...' : ''}"`);
       
@@ -99,7 +103,20 @@ function HomePage() {
       setProcessedData(updatedData || []);
     } catch (err) {
       console.error('Error processing text:', err);
-      setError(`Failed to process text: ${err.message || 'Unknown error'}`);
+      
+      // Check for authentication errors
+      if (err.message.includes('API key is invalid') || 
+          err.message.includes('unauthorized') || 
+          err.message.includes('401')) {
+        setError('Authentication failed: Your API key appears to be invalid or expired. Please check your API keys in the configuration.');
+        
+        // Show the API form to let the user fix their keys
+        setShowApiForm(true);
+        setKeysConfigured(false);
+      } else {
+        setError(`Failed to process text: ${err.message || 'Unknown error'}`);
+      }
+      
       setResult('');
     } finally {
       setIsProcessing(false);
@@ -108,44 +125,64 @@ function HomePage() {
 
   // Process text file (.txt, .pdf, .epub)
   const handleProcessTextFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) {
+    const files = e.target.files;
+    if (!files || files.length === 0) {
       return;
     }
 
     setIsProcessing(true);
     setError('');
-      try {
-      let text = '';
-        if (file.name.toLowerCase().endsWith('.txt')) {
-        // Handle plain text files
-        text = await readTextFile(file);
-      } else if (file.name.toLowerCase().endsWith('.pdf')) {
-        // Handle PDF files
-        if (!pdfjs) {
-          throw new Error('PDF processing is only available in browser environment');
+    
+    try {
+      let processedCount = 0;
+      let errorCount = 0;
+      
+      // Process each file sequentially
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          let text = '';          if (file.name.toLowerCase().endsWith('.txt')) {
+            // Handle plain text files
+            text = await readTextFile(file);
+          } else if (file.name.toLowerCase().endswith('.pdf')) {
+            // Handle PDF files
+            if (!pdfjs) {
+              throw new Error('PDF processing is only available in browser environment');
+            }
+            text = await readPdfFile(file);
+          } else {
+            continue; // Skip unsupported files
+          }
+          
+          if (!text || text.trim().length === 0) {
+            errorCount++;
+            continue;
+          }
+          
+          // Process the extracted text with AI
+          await processText(text, file.name);
+          processedCount++;
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+          errorCount++;
         }
-        text = await readPdfFile(file);
-      } else {
-        throw new Error('Unsupported file format. Please upload .txt or .pdf files.');
       }
-      
-      if (!text || text.trim().length === 0) {
-        throw new Error('Could not extract text from the file. The file might be empty or corrupted.');
+
+      // Update the UI based on results
+      if (processedCount > 0 && errorCount === 0) {
+        setResult(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''}`);
+      } else if (processedCount > 0 && errorCount > 0) {
+        setResult(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''}`);
+      } else if (errorCount > 0) {
+        throw new Error(`Failed to process ${errorCount} file${errorCount !== 1 ? 's' : ''}`);
       }
-      
-      // Process the extracted text with AI
-      await processText(text);
-      
-      // Update the UI
-      setResult(`Successfully processed text from: ${file.name}`);
       
       // Update the list of processed items
       const updatedData = await getAllData();
       setProcessedData(updatedData || []);
     } catch (err) {
-      console.error('Error processing text file:', err);
-      setError(`Failed to process text file: ${err.message || 'Unknown error'}`);
+      console.error('Error processing text files:', err);
+      setError(`Failed to process text files: ${err.message || 'Unknown error'}`);
       setResult('');
     } finally {
       setIsProcessing(false);
@@ -285,7 +322,12 @@ function HomePage() {
       if (file) {
         try {
           // Process image using AI
-          await processImage(file);
+          const result = await processImage(file);
+          
+          // Check if there was an error
+          if (result.error) {
+            throw new Error(result.processingResult);
+          }
           
           setResult(`Successfully processed image: ${file.name}`);
           
@@ -294,7 +336,20 @@ function HomePage() {
           setProcessedData(updatedData || []);
         } catch (err) {
           console.error('Error processing image:', err);
-          setError(`Failed to process image: ${err.message || 'Unknown error'}`);
+          
+          // Check for authentication errors
+          if (err.message.includes('API key is invalid') || 
+              err.message.includes('unauthorized') || 
+              err.message.includes('401')) {
+            setError('Authentication failed: Your API key appears to be invalid or expired. Please check your API keys in the configuration.');
+            
+            // Show the API form to let the user fix their keys
+            setShowApiForm(true);
+            setKeysConfigured(false);
+          } else {
+            setError(`Failed to process image: ${err.message || 'Unknown error'}`);
+          }
+          
           setResult('');
         } finally {
           setIsProcessing(false);
@@ -509,11 +564,11 @@ function HomePage() {
                     variant="outlined"
                     component="span"
                     disabled={isProcessing}
-                    startIcon={<CloudUploadIcon />}
-                    onClick={() => {
+                    startIcon={<CloudUploadIcon />}                    onClick={() => {
                       const input = document.createElement('input');
                       input.type = 'file';
                       input.accept = '.txt,.pdf';
+                      input.multiple = true;
                       input.onchange = handleProcessTextFile;
                       input.click();
                     }}
@@ -521,31 +576,33 @@ function HomePage() {
                     Upload Text File (.txt, .pdf)
                   </Button>
               </Box>              <Divider sx={{ my: 1 }} />
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                <Button 
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>                <Button 
                   onClick={handleProcessImage} 
                   variant="outlined" 
-                  disabled={isProcessing}
+                  disabled={isProcessing || !keysConfigured}
                   startIcon={<ImageIcon />}
                   sx={{ mr: 1, mb: 1 }}
+                  title={!keysConfigured ? "API key required for image processing" : ""}
                 >
                   Process Image
                 </Button>
                 <Button 
                   onClick={handleProcessAudio} 
                   variant="outlined" 
-                  disabled={isProcessing}
+                  disabled={isProcessing || !keysConfigured}
                   startIcon={<AudiotrackIcon />}
                   sx={{ mr: 1, mb: 1 }}
+                  title={!keysConfigured ? "API key required for audio processing" : ""}
                 >
                   Process Audio
                 </Button>
                 <Button 
                   onClick={handleProcessVideo} 
                   variant="outlined" 
-                  disabled={isProcessing}
+                  disabled={isProcessing || !keysConfigured}
                   startIcon={<VideocamIcon />}
                   sx={{ mr: 1, mb: 1 }}
+                  title={!keysConfigured ? "API key required for video processing" : ""}
                 >
                   Process Video
                 </Button>
@@ -568,15 +625,7 @@ function HomePage() {
                 </Button>
               </Box>
             </Box>
-          </CardContent>
-        </Card>
-        
-        {/* Display Changelog */}
-        <Card variant="outlined" sx={{ mb: 3 }}>
-          <CardContent>
-            <ChangelogViewer />
-          </CardContent>
-        </Card>
+          </CardContent>        </Card>
         
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
@@ -664,23 +713,31 @@ function HomePage() {
                           >
                             {new Date(item.timestamp).toLocaleString()}
                           </Typography>
-                        </Box>
-                        {(item.type === 'text' || item.processingResult) && (
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 3,
-                              WebkitBoxOrient: 'vertical',
-                            }}
-                          >
-                            {item.type === 'text' 
-                              ? truncateText(item.content || '', 150) 
-                              : truncateText(item.processingResult || '', 150)
-                            }
-                          </Typography>
+                        </Box>                        {(item.type === 'text' || item.processingResult) && (
+                          <>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: 'vertical',
+                              }}
+                            >
+                              {item.type === 'text' 
+                                ? truncateText(item.content || '', 150) 
+                                : truncateText(item.processingResult || '', 150)
+                              }
+                            </Typography>
+                            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                              <Link href={`/readtext?id=${item.id}`} passHref style={{ textDecoration: 'none' }}>
+                                <Button size="small" variant="outlined">
+                                  View Full Text
+                                </Button>
+                              </Link>
+                            </Box>
+                          </>
                         )}
                       </Box>
                       </CardContent>

@@ -2,6 +2,39 @@
 import axios from 'axios';
 import { insertData } from './database';
 
+// Create axios instance with interceptors for error handling
+const apiClient = axios.create();
+
+// Add response interceptor to handle auth errors
+apiClient.interceptors.response.use(
+  response => response, // Return successful responses as-is
+  error => {
+    if (error.response) {
+      switch (error.response.status) {
+        case 401:
+          console.error('Authentication error: Invalid or expired API key');
+          // We can redirect to API key config page or show a specific message
+          if (typeof window !== 'undefined') {
+            // Clear stored keys if they're invalid
+            localStorage.removeItem('openai_api_key');
+            localStorage.removeItem('openrouter_api_key');
+          }
+          return Promise.reject(new Error('API key is invalid or expired. Please check your API key configuration.'));
+        
+        case 403:
+          return Promise.reject(new Error('API access forbidden. Your account may have restrictions.'));
+          
+        case 429:
+          return Promise.reject(new Error('Rate limit exceeded. Please try again later.'));
+          
+        case 500:
+          return Promise.reject(new Error('AI service error. Please try again later.'));
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Function to read file data as base64
 const readFileAsBase64 = (file) => {
   return new Promise((resolve, reject) => {
@@ -293,7 +326,7 @@ const fetchAIProcessing = async (mediaType, content, filename = '') => {
 const processImageWithGPT4Vision = async (apiKey, imageData, filename) => {
   try {
     console.log('Processing image with OpenAI Vision models...');
-    
+
     // Check if we're using OpenRouter or OpenAI based on the API key format
     // OpenRouter keys start with sk-or-, OpenAI keys start with sk- (including sk-proj-)
     const isOpenRouter = apiKey.startsWith('sk-or-');
@@ -376,7 +409,7 @@ Filename: ${filename || 'uploaded image'}`
 
     // Make the API request
     console.log(`Sending request to ${isOpenRouter ? 'OpenRouter' : 'OpenAI'} API...`);
-    const response = await axios({
+    const response = await apiClient({
       method: 'post',
       url: endpoint,
       headers: headers,
@@ -510,7 +543,7 @@ const processAudioWithWhisper = async (apiKey, audioData, filename) => {
 
     // Call the OpenAI Whisper API
     console.log('Sending request to Whisper API...');
-    const response = await axios({
+    const response = await apiClient({
       method: 'post',
       url: 'https://api.openai.com/v1/audio/transcriptions',
       headers: {
@@ -526,7 +559,7 @@ const processAudioWithWhisper = async (apiKey, audioData, filename) => {
       console.log('Successfully transcribed audio');
 
       // Now analyze the transcription with GPT
-      console.log('Analyzing transcription content...');      const analysisResponse = await axios({
+      console.log('Analyzing transcription content...');      const analysisResponse = await apiClient({
         method: 'post',
         url: 'https://api.openai.com/v1/chat/completions',
         headers: {
@@ -690,7 +723,7 @@ const processTextWithGPT = async (apiKey, text) => {
       max_tokens: 1000
     };
 
-    const response = await axios.post(
+    const response = await apiClient.post(
       endpoint,
       requestBody,
       {
