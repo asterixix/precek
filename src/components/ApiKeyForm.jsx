@@ -1,116 +1,113 @@
 import React, { useState, useEffect } from 'react';
-import { TextField, Button, Box, Typography, Alert, Link } from '@mui/material';
-import { getApiKeys } from '/src/utils/helpers'; // Import helper
+import { getApiKeys } from '/src/utils/helpers';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+import Link from '@mui/material/Link'; // Import Link for external URLs
 
-const ApiKeyForm = ({ onKeysSaved }) => {
-  const [openAIKey, setOpenAIKey] = useState('');
-  const [openRouterKey, setOpenRouterKey] = useState('');
-  const [googleFactCheckKey, setGoogleFactCheckKey] = useState(''); // Add state for Google key
-  const [message, setMessage] = useState('');
+// Accept initialKeys prop - simplified
+const ApiKeyForm = ({ onKeysSaved, initialKeys = { openai: '' } }) => {
+  const [openaiKey, setOpenaiKey] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [hasDefaultOpenRouterKey, setHasDefaultOpenRouterKey] = useState(false);
 
+  // Load existing OpenAI key and check if default OpenRouter key exists
   useEffect(() => {
-    // Load existing keys from helper (which checks localStorage and window)
-    const keys = getApiKeys();
-    setOpenAIKey(keys.openai || '');
-    setOpenRouterKey(keys.openrouter || '');
-    setGoogleFactCheckKey(keys.googleFactCheck || ''); // Load Google key
-  }, []);
+    // Check if a build-time default key exists
+    const buildTimeOpenRouterKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '';
+    setHasDefaultOpenRouterKey(!!buildTimeOpenRouterKey);
+
+    // Use initialKeys prop for OpenAI if provided, otherwise fetch from helpers
+    const keys = initialKeys.openai ? initialKeys : getApiKeys(); // Only need OpenAI from initialKeys now
+    setOpenaiKey(keys.openai || '');
+
+  }, [initialKeys]); // Depend on initialKeys
 
   const handleSave = () => {
     setError('');
-    setMessage('');
+    setSuccess('');
+
+    // Basic validation: Check if OpenAI key is provided (if no default OpenRouter key exists)
+    // Or allow saving even if empty, letting the backend handle it? Let's require OpenAI if no default OR key.
+    if (!openaiKey && !hasDefaultOpenRouterKey) {
+      setError('Please provide an OpenAI API key. A default OpenRouter key is not available in this build.');
+      return;
+    }
+    // If a default OR key exists, saving an empty OpenAI key is acceptable.
+    // If only OpenAI key is provided, that's also fine.
 
     try {
-      // Basic validation (optional, can be enhanced)
-      // No specific validation needed for saving, but maybe for format later
+      // Save/Remove only OpenAI key to localStorage
+      if (openaiKey) localStorage.setItem('openai_api_key', openaiKey);
+      else localStorage.removeItem('openai_api_key');
 
-      // Save to localStorage
-      if (openAIKey) localStorage.setItem('openai_api_key', openAIKey);
-      else localStorage.removeItem('openai_api_key'); // Clear if empty
-
-      if (openRouterKey) localStorage.setItem('openrouter_api_key', openRouterKey);
-      else localStorage.removeItem('openrouter_api_key'); // Clear if empty
-
-      if (googleFactCheckKey) localStorage.setItem('google_fact_check_api_key', googleFactCheckKey); // Save Google key
-      else localStorage.removeItem('google_fact_check_api_key'); // Clear if empty
-
-      // Update global window object (for immediate use without reload if needed)
-      // Ensure __PRECEK_API_KEYS exists or initialize it
+      // Update only OpenAI key on the window object
       window.__PRECEK_API_KEYS = window.__PRECEK_API_KEYS || {};
-      window.__PRECEK_API_KEYS.openai = openAIKey || '';
-      window.__PRECEK_API_KEYS.openrouter = openRouterKey || '';
-      window.__PRECEK_API_KEYS.googleFactCheck = googleFactCheckKey || ''; // Update window object
+      window.__PRECEK_API_KEYS.openai = openaiKey || '';
 
-      // Also update the individual window properties if multimediaProcessor relies on them directly
-      window.NEXT_PUBLIC_OPENAI_API_KEY = openAIKey || '';
-      window.OPENROUTER_API_KEY = openRouterKey || '';
-      window.GOOGLE_FACT_CHECK_API_KEY = googleFactCheckKey || ''; // Update window object
+      // REMOVE Deprecated direct window properties
+      // window.NEXT_PUBLIC_OPENAI_API_KEY = openaiKey || '';
+      // window.OPENROUTER_API_KEY = '';
 
-      setMessage('API Keys saved successfully!');
+      setSuccess('OpenAI API key saved successfully!');
       if (onKeysSaved) {
-        onKeysSaved(); // Notify parent component if needed
+        onKeysSaved(); // Notify parent component
       }
-    } catch (e) {
-      console.error("Error saving API keys:", e);
+
+      // Clear success message after a delay
+      setTimeout(() => setSuccess(''), 3000);
+
+    } catch (err) {
+      console.error('Error saving API keys:', err);
       setError('Failed to save API keys. Check browser permissions for localStorage.');
     }
   };
 
   return (
-    <Box component="form" noValidate autoComplete="off" sx={{ mt: 1 }}>
-      <Typography variant="h6" gutterBottom>
-        Configure API Keys (Optional)
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Provide your API keys to enable AI features and fact-checking. Keys are stored locally in your browser. If deploying, configure server-side environment variables for production use (especially for Google Fact Check). See{' '}
-        <Link href="https://developers.google.com/fact-check/tools/api/guides/auth" target="_blank" rel="noopener">
-          Google Fact Check API Key guide
-        </Link>.
-      </Typography>
+    <Box component="form" noValidate autoComplete="off" sx={{ mt: 1, mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+      <Typography variant="h6" gutterBottom>Configure API Keys</Typography>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Enter your OpenAI API key below. Keys are stored locally in your browser&apos;s localStorage and only sent to OpenAI.
+        {hasDefaultOpenRouterKey ?
+          " A default OpenRouter API key is configured in this build and will be used for accessing various other models." :
+          " An OpenRouter key is not configured in this build, so only OpenAI models will be available."}
+        <br /><br />
+        <strong>How to get an OpenAI API Key:</strong>
+        <ul>
+          <li>
+            Visit{' '}
+            <Link href="https://platform.openai.com/settings/organization/api-keys" target="_blank" rel="noopener noreferrer">
+              platform.openai.com/settings/organization/api-keys
+            </Link>
+            , sign in, and create a new secret key.
+          </li>
+        </ul>
+         <br />
+         <strong>Security Reminder:</strong> Your OpenAI key is stored in your browser's local storage. {hasDefaultOpenRouterKey && "The default OpenRouter key is embedded in the application code."}
+      </Alert>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {message && <Alert severity="success" sx={{ mb: 2 }}>{message}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+
       <TextField
-        margin="normal"
-        fullWidth
-        id="openai-key"
         label="OpenAI API Key"
-        name="openai-key"
-        type="password"
-        value={openAIKey}
-        onChange={(e) => setOpenAIKey(e.target.value)}
-        helperText="Optional. Used for features like text analysis."
-      />
-      <TextField
-        margin="normal"
+        variant="outlined"
         fullWidth
-        id="openrouter-key"
-        label="OpenRouter API Key"
-        name="openrouter-key"
-        type="password"
-        value={openRouterKey}
-        onChange={(e) => setOpenRouterKey(e.target.value)}
-        helperText="Optional. Alternative AI provider."
-      />
-      <TextField
         margin="normal"
-        fullWidth
-        id="google-fact-check-key"
-        label="Google Fact Check API Key"
-        name="google-fact-check-key"
         type="password"
-        value={googleFactCheckKey}
-        onChange={(e) => setGoogleFactCheckKey(e.target.value)}
-        helperText="Optional. Enables the Fact Check feature in Visualization."
+        value={openaiKey}
+        onChange={(e) => setOpenaiKey(e.target.value)}
+        helperText={hasDefaultOpenRouterKey ? "Optional. If provided, allows access to OpenAI models." : "Required for processing."}
       />
       <Button
-        type="button" // Prevent default form submission
-        fullWidth
         variant="contained"
-        sx={{ mt: 3, mb: 2 }}
         onClick={handleSave}
+        sx={{ mt: 2 }}
+        disabled={!openaiKey && !hasDefaultOpenRouterKey}
       >
-        Save API Keys
+        Save Key {/* Changed button text */}
       </Button>
     </Box>
   );

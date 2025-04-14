@@ -1,137 +1,111 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Head from 'next/head';
 import Link from 'next/link';
+// Import readTextFile and readPdfFile along with getApiKeys
+import { getApiKeys, readTextFile, readPdfFile } from '/src/utils/helpers';
+import { getAllData, addData, clearAllData, exportDataToCSV } from '/src/services/database';
 import { processText, processImage, processAudio, processVideo } from '/src/services/multimediaProcessor';
-import { getAllData, exportToCSV, clearAllData } from '/src/services/database';
-import { readTextFile, readPdfFile, getApiKeys } from '/src/utils/helpers'; // Import helpers, including getApiKeys
 
-// Import Custom Components
+// Material UI Components
+import Container from '@mui/material/Container';
+import Typography from '@mui/material/Typography';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
+import Tooltip from '@mui/material/Tooltip'; // Import Tooltip
+
+// Custom Components
 import ApiKeyForm from '/src/components/ApiKeyForm';
 import ProcessingControls from '/src/components/ProcessingControls';
 import ProcessedDataDisplay from '/src/components/ProcessedDataDisplay';
-
-// Import Material UI components
-import Button from '@mui/material/Button';
-import Typography from '@mui/material/Typography';
-import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
-import Alert from '@mui/material/Alert';
-import CircularProgress from '@mui/material/CircularProgress'; // For loading state
 
 function HomePage() {
   const [processedData, setProcessedData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState(''); // Simple status message
-  const [apiKeys, setApiKeys] = useState({ openai: '', openrouter: '', googleFactCheck: '' }); // Include google key state
-  const [keysConfigured, setKeysConfigured] = useState(false);
+  const [result, setResult] = useState('');
   const [showApiForm, setShowApiForm] = useState(false);
+  // Remove googleFactCheck from initial state
+  const [apiKeys, setApiKeys] = useState({ openai: '', openrouter: '' });
+  const [keysConfigured, setKeysConfigured] = useState(false);
 
-  // Load initial data and keys
-  const loadInitialData = useCallback(async () => {
-    try {
-      const data = await getAllData();
-      setProcessedData(data || []);
-    } catch (err) {
-      console.error('Error loading data:', err);
-      setError('Failed to load existing data');
-    }
-
-    // Use getApiKeys to load from localStorage/window consistently
-    const currentKeys = getApiKeys();
-    setApiKeys(currentKeys); // Update state with all keys
-
-    // Core processing depends on OpenAI or OpenRouter
-    const coreKeysConfigured = !!(currentKeys.openai || currentKeys.openrouter);
-    setKeysConfigured(coreKeysConfigured);
-    setShowApiForm(!coreKeysConfigured); // Show form if no core keys are found
-  }, []); // Empty dependency array ensures this runs only once on mount
-
+  // Check for API keys on mount
   useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]); // Correctly include loadInitialData in dependencies
+    const keys = getApiKeys();
+    // Update check to only consider openai and openrouter
+    const configured = !!(keys.openai || keys.openrouter);
+    setApiKeys(keys);
+    setKeysConfigured(configured);
+    // Show form initially if keys are not configured
+    setShowApiForm(!configured);
+  }, []);
 
-  // Generic processing handler - Modified to accept keys
-  const handleProcess = async (processor, input, inputName = 'input', currentApiKeys) => {
+  // Fetch data from IndexedDB on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await getAllData();
+        setProcessedData(data || []);
+      } catch (err) {
+        console.error('Error fetching data from IndexedDB:', err);
+        setError('Failed to load existing data.');
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Debounce result/error clearing
+  useEffect(() => {
+    if (result || error) {
+      const timer = setTimeout(() => {
+        setResult('');
+        setError('');
+      }, 5000); // Clear after 5 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [result, error]);
+
+
+  // Generic processing function
+  const handleProcess = async (processor, input, type, originalName = null) => {
     setIsProcessing(true);
     setError('');
-    setResult(''); // Clear previous result
+    setResult('');
 
     try {
-      // Pass keys to the processor function
-      const response = await processor(input, inputName, currentApiKeys);
-
-      // Check for errors returned by the processor service
+      const response = await processor(input, type, apiKeys);
       if (response && response.error) {
         throw new Error(response.processingResult || 'Processing failed');
       }
+      setResult(`Successfully processed: ${originalName || input}`); // Set result first
 
-      setResult(`Successfully processed: ${inputName}`);
+      // Fetch updated data *after* success message
       const updatedData = await getAllData();
       setProcessedData(updatedData || []);
+
     } catch (err) {
-      console.error(`Error processing ${inputName}:`, err);
-      // Handle specific API key errors
+      console.error(`Error processing ${originalName || input}:`, err);
       if (err.message.includes('API key is invalid') || err.message.includes('unauthorized') || err.message.includes('401')) {
         setError('Authentication failed: An API key might be invalid or expired. Please check your configuration.');
-        setKeysConfigured(false); // Mark as not configured
-        setShowApiForm(true); // Show form to fix
+        setKeysConfigured(false);
+        setShowApiForm(true);
       } else {
-        setError(`Failed to process ${inputName}: ${err.message || 'Unknown error'}`);
+        setError(`Failed to process ${originalName || input}: ${err.message || 'Unknown error'}`);
       }
     } finally {
-      setIsProcessing(false);
+      setIsProcessing(false); // Finish processing state update here
     }
   };
 
-  // Specific handlers calling the generic one - Modified to pass keys
-  const handleProcessText = (text) => {
-    const currentKeys = getApiKeys();
-    if (!currentKeys.openai && !currentKeys.openrouter) {
-        setError("API keys are not configured. Please configure them first.");
-        setShowApiForm(true);
-        return;
-    }
-    handleProcess(processText, text, `"${truncateText(text, 30)}"`, currentKeys);
-  };
+  // Specific handlers using the generic function
+  const handleProcessText = (text) => handleProcess(processText, text, 'text');
+  const handleProcessImage = (file) => handleProcess(processImage, file, 'image', file.name);
+  const handleProcessAudio = (file) => handleProcess(processAudio, file, 'audio', file.name);
+  const handleProcessVideo = (file) => handleProcess(processVideo, file, 'video', file.name);
 
-  const handleProcessImage = (file) => {
-    const currentKeys = getApiKeys();
-     if (!currentKeys.openai && !currentKeys.openrouter) {
-        setError("API keys are not configured. Please configure them first.");
-        setShowApiForm(true);
-        return;
-    }
-    handleProcess(processImage, file, file.name, currentKeys);
-  };
-
-  const handleProcessAudio = (file) => {
-    const currentKeys = getApiKeys();
-     if (!currentKeys.openai && !currentKeys.openrouter) {
-        setError("API keys are not configured. Please configure them first.");
-        setShowApiForm(true);
-        return;
-    }
-    handleProcess(processAudio, file, file.name, currentKeys);
-  };
-
-  const handleProcessVideo = (file) => {
-    const currentKeys = getApiKeys();
-     if (!currentKeys.openai && !currentKeys.openrouter) {
-        setError("API keys are not configured. Please configure them first.");
-        setShowApiForm(true);
-        return;
-    }
-    handleProcess(processVideo, file, file.name, currentKeys);
-  };
-
-  // Special handler for text files (potentially multiple) - Modified to pass keys
+  // Handle processing text from a file
   const handleProcessTextFile = async (files) => {
-     const currentKeys = getApiKeys(); // Get keys once
-     if (!currentKeys.openai && !currentKeys.openrouter) {
-        setError("API keys are not configured. Please configure them first.");
-        setShowApiForm(true);
-        return;
-    }
     setIsProcessing(true);
     setError('');
     setResult('');
@@ -139,82 +113,86 @@ function HomePage() {
     let processedCount = 0;
     let errorCount = 0;
     const fileNames = Array.from(files).map(f => f.name).join(', ');
+    let firstError = null; // Store the first critical error
+    let processedSuccessfully = false;
 
-    try {
-      for (const file of files) {
-        try {
-          let text = '';
-          const lowerCaseName = file.name.toLowerCase();
-          if (lowerCaseName.endsWith('.txt')) {
-            text = await readTextFile(file);
-          } else if (lowerCaseName.endsWith('.pdf')) {
-            text = await readPdfFile(file);
-          } else {
-             console.warn(`Skipping unsupported file type: ${file.name}`);
-             continue; // Skip unsupported files silently in UI for now
-          }
+    // Helper function to truncate text
+    const truncateText = (text, maxLength) => {
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    };
 
-          if (!text || text.trim().length === 0) {
-             console.warn(`Skipping empty or unreadable file: ${file.name}`);
-             errorCount++; // Count as error if text extraction failed or was empty
-             continue;
-          }
 
-          // Process the extracted text, passing keys
-          // *** Error Note: The 'TypeError: (0 , l.addData) is not a function' likely originates ***
-          // *** from within this 'processText' function or the database functions it calls. ***
-          // *** Check the implementation in '/src/services/multimediaProcessor.js' and '/src/services/database.js'. ***
-          const response = await processText(text, file.name, currentKeys); // Pass keys here
-          if (response && response.error) {
-              throw new Error(response.processingResult || `Processing failed for ${file.name}`);
-          }
-          processedCount++;
-        } catch (fileError) {
-          console.error(`Error processing file ${file.name}:`, fileError);
-          // *** Error Note: The error caught here might be the 'addData is not a function' error ***
-          // *** propagated from the 'processText' call above. ***
-          errorCount++;
-           // Propagate API key errors immediately
-          if (fileError.message.includes('API key is invalid') || fileError.message.includes('unauthorized') || fileError.message.includes('401')) {
-              throw fileError; // Re-throw to be caught by outer catch
-          }
+    for (const file of files) {
+      try {
+        let text = '';
+        const lowerCaseName = file.name.toLowerCase();
+        if (lowerCaseName.endsWith('.txt')) {
+          // Now readTextFile is defined
+          text = await readTextFile(file);
+        } else if (lowerCaseName.endsWith('.pdf')) {
+          // Now readPdfFile is defined
+          text = await readPdfFile(file);
+        } else {
+           console.warn(`Skipping unsupported file type: ${file.name}`);
+           continue;
+        }
+
+        if (!text || text.trim().length === 0) {
+           console.warn(`Skipping empty or unreadable file: ${file.name}`);
+           continue;
+        }
+
+        // Process the extracted text
+        const response = await processText(text, file.name, apiKeys);
+        if (response && response.error) {
+            throw new Error(response.processingResult || `Processing failed for ${file.name}`);
+        }
+        processedCount++;
+        processedSuccessfully = true; // Mark that at least one file succeeded
+      } catch (fileError) {
+        console.error(`Error processing file ${file.name}:`, fileError);
+        errorCount++;
+        if (!firstError) firstError = fileError;
+        if (fileError.message.includes('API key is invalid') || fileError.message.includes('unauthorized') || fileError.message.includes('401')) {
+            break; // Stop processing on critical auth errors
         }
       }
-
-      // Update UI based on results
-      if (processedCount > 0 && errorCount === 0) {
-        setResult(`Successfully processed ${processedCount} file(s): ${truncateText(fileNames, 50)}`);
-      } else if (processedCount > 0 && errorCount > 0) {
-        setResult(`Processed ${processedCount} file(s) with ${errorCount} error(s).`);
-        setError(`Failed to process ${errorCount} file(s). Check console for details.`); // Provide some error feedback
-      } else if (errorCount > 0) {
-        throw new Error(`Failed to process ${errorCount} file(s).`);
-      } else {
-         setResult("No supported files found or processed."); // Handle case where no .txt/.pdf files were selected
-      }
-
-      const updatedData = await getAllData();
-      setProcessedData(updatedData || []);
-
-    } catch (err) {
-       console.error('Error processing text files:', err);
-       // Handle specific API key errors from the loop
-       if (err.message.includes('API key is invalid') || err.message.includes('unauthorized') || err.message.includes('401')) {
-         setError('Authentication failed: An API key might be invalid or expired. Please check your configuration.');
-         setKeysConfigured(false);
-         setShowApiForm(true);
-       } else {
-          // *** Error Note: This catch block might handle the 'addData is not a function' error ***
-          // *** if it was re-thrown from the inner catch block. ***
-          setError(`Failed to process files: ${err.message || 'Unknown error'}`);
-       }
-    } finally {
-      setIsProcessing(false);
     }
+
+    // Update UI status messages *before* potentially fetching data
+    if (firstError && (firstError.message.includes('API key is invalid') || firstError.message.includes('unauthorized') || firstError.message.includes('401'))) {
+        setError('Authentication failed: An API key might be invalid or expired. Please check your configuration.');
+        setKeysConfigured(false);
+        setShowApiForm(true);
+    } else if (processedCount > 0 && errorCount === 0) {
+      // Use truncateText helper
+      setResult(`Successfully processed ${processedCount} file(s): ${truncateText(fileNames, 50)}`);
+    } else if (processedCount > 0 && errorCount > 0) {
+      setResult(`Processed ${processedCount} file(s) with ${errorCount} error(s).`);
+      setError(`Failed to process ${errorCount} file(s). Check console for details. First error: ${firstError?.message || 'Unknown'}`);
+    } else if (errorCount > 0) {
+      setError(`Failed to process ${errorCount} file(s). First error: ${firstError?.message || 'Unknown'}`);
+    } else if (processedCount === 0 && errorCount === 0) {
+       setResult("No supported files found or processed.");
+    }
+
+    // Fetch updated data list *only if* at least one file was processed successfully
+    // or if you always want to refresh regardless of errors (depends on desired behavior)
+    if (processedSuccessfully || errorCount > 0) { // Refresh if anything was attempted
+        try {
+            const updatedData = await getAllData();
+            setProcessedData(updatedData || []);
+        } catch (fetchErr) {
+            console.error('Error fetching updated data after processing files:', fetchErr);
+            setError(prev => prev ? `${prev} | Failed to refresh data list.` : 'Failed to refresh data list.');
+        }
+    }
+
+    setIsProcessing(false); // End processing state
   };
 
-
-  // Export data to CSV
+  // Export data
   const handleExportToCSV = async () => {
     try {
       const csvContent = await exportToCSV();
@@ -249,60 +227,79 @@ function HomePage() {
     }
   };
 
-  // Handle saving keys from the form
+  // Callback when keys are saved in the form
   const handleKeysSaved = () => {
-    // ApiKeyForm already saved to localStorage and updated window object.
-    // We just need to re-check the configuration status based on core keys.
-    const currentKeys = getApiKeys(); // Re-read keys
-    setApiKeys(currentKeys); // Update local state
-    setKeysConfigured(!!(currentKeys.openai || currentKeys.openrouter));
-    setShowApiForm(false);
-    setError(''); // Clear any previous errors like "keys not configured"
+    const keys = getApiKeys(); // Re-fetch keys
+    setApiKeys(keys);
+    // Update check
+    const configured = !!(keys.openai || keys.openrouter);
+    setKeysConfigured(configured);
+    setShowApiForm(false); // Hide form after saving
     setResult('API keys saved successfully!'); // Provide user feedback
   };
 
-  // Handle changing API keys
+  // Handle changing API keys - Toggle the form visibility
   const handleChangeApiKeys = () => {
-    setShowApiForm(true);
+    setShowApiForm(prev => !prev); // Toggle the state
   };
 
   return (
     <Container maxWidth="lg" sx={{ py: 4, px: { xs: 1, sm: 2 } }}> {/* Responsive padding */}
       <Box component="header" sx={{ mb: 4, textAlign: 'center' }}> {/* Center header */}
         <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold' }}>Precek</Typography>
-        <Typography variant="body1" color="text.secondary">AI-Powered Multimedia Analysis</Typography>
+        <Typography variant="body1" color="text.secondary">Your text, image, audio and video as a Data</Typography>
       </Box>
 
-      {/* Top Controls: View Visualizations & Change API Keys */}
+      {/* API Key Form Toggle/Display */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-        <Link href="/visualization" passHref style={{ textDecoration: 'none' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            size="medium"
-            disabled={processedData.length === 0} // Disable if no data
-            sx={{ borderRadius: 2, boxShadow: 1 }}
-          >
-            View Data Visualizations
-          </Button>
-        </Link>
+        {/* Conditionally render Link or just the Button */}
+        {processedData.length > 0 ? (
+          <Link href="/visualization" passHref style={{ textDecoration: 'none' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="medium"
+              sx={{ borderRadius: 2, boxShadow: 1 }}
+            >
+              View Data Visualizations
+            </Button>
+          </Link>
+        ) : (
+          <Tooltip title="Process some data first to enable visualizations">
+            {/* Span needed for Tooltip when button is disabled */}
+            <span>
+              <Button
+                variant="contained"
+                color="primary"
+                size="medium"
+                disabled // Disable the button
+                sx={{ borderRadius: 2, boxShadow: 1 }}
+              >
+                View Data Visualizations
+              </Button>
+            </span>
+          </Tooltip>
+        )}
 
+        {/* Button to change/hide keys - only show if keys are already configured */}
         {keysConfigured && (
           <Button
             variant="outlined"
             size="small"
-            onClick={handleChangeApiKeys}
+            onClick={handleChangeApiKeys} // This now correctly toggles
+            sx={{ borderRadius: 2 }}
           >
-            Change API Keys
+            {showApiForm ? 'Hide API Key Form' : 'Change API Keys'}
           </Button>
         )}
       </Box>
 
-      {/* API Key Form (Conditional) */}
+      {/* Conditionally render API Key Form */}
       {showApiForm && (
         <ApiKeyForm
           onKeysSaved={handleKeysSaved}
-          // No need to pass initial keys, ApiKeyForm reads them itself via useEffect
+          // Pass current keys if needed for initial values, ensure only relevant keys are passed
+          initialKeys={{ openai: apiKeys.openai, openrouter: apiKeys.openrouter }}
         />
       )}
 
@@ -315,9 +312,10 @@ function HomePage() {
         onProcessVideo={handleProcessVideo}
         isProcessing={isProcessing}
         keysConfigured={keysConfigured}
+        openaiApiKey={apiKeys.openai} // Pass the OpenAI key
       />
 
-      {/* Status Messages */}
+      {/* Status Indicators */}
       {isProcessing && (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', my: 2, gap: 1 }}>
               <CircularProgress size={20} />
@@ -340,20 +338,11 @@ function HomePage() {
         processedData={processedData}
         onExportToCSV={handleExportToCSV}
         onClearData={handleClearData}
-        isProcessing={isProcessing}
+        isProcessing={isProcessing} // Pass isProcessing if needed by the display component
       />
 
     </Container>
   );
 }
 
-// Helper function (if not already present or imported)
-function truncateText(text, maxLength) {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.substring(0, maxLength) + '...';
-}
-
-
-export default HomePage;
+export default HomePage; // Ensure export default is present

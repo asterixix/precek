@@ -21,6 +21,7 @@ const ProcessingControls = ({
   onProcessVideo,
   isProcessing,
   keysConfigured,
+  openaiApiKey, // Receive the OpenAI key prop
 }) => {
   const [inputText, setInputText] = useState('');
 
@@ -124,18 +125,20 @@ const ProcessingControls = ({
                 <Button
                   onClick={() => triggerFileInput('audio/*', false, onProcessAudio)}
                   variant="outlined"
-                  disabled={isProcessing || !keysConfigured}
+                  // Disable if processing, keys not configured, OR openaiApiKey is missing
+                  disabled={isProcessing || !keysConfigured || !openaiApiKey}
                   startIcon={<AudiotrackIcon />}
-                  title={!keysConfigured ? "API keys required" : ""}
+                  title={!keysConfigured ? "API keys required" : !openaiApiKey ? "OpenAI API key required for audio processing" : ""}
                 >
                   Process Audio
                 </Button>
                 <Button
                   onClick={() => triggerFileInput('video/*', false, onProcessVideo)}
                   variant="outlined"
-                  disabled={isProcessing || !keysConfigured}
+                  // Disable if processing, keys not configured, OR openaiApiKey is missing
+                  disabled={isProcessing || !keysConfigured || !openaiApiKey}
                   startIcon={<VideocamIcon />}
-                  title={!keysConfigured ? "API keys required" : ""}
+                  title={!keysConfigured ? "API keys required" : !openaiApiKey ? "OpenAI API key required for video processing" : ""}
                 >
                   Process Video
                 </Button>

@@ -1,8 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Import useCallback
 import dynamic from 'next/dynamic';
-
-// Custom Hook for analysis logic
-import useTextAnalysis from '/src/hooks/useTextAnalysis';
 
 // Material UI components
 import Box from '@mui/material/Box';
@@ -11,19 +8,23 @@ import Tab from '@mui/material/Tab';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress'; // For loading state
 
+// Import the hook
+import useTextAnalysis from '../hooks/useTextAnalysis'; // Add this line
+
 // Import Tab Panel Components (Add others as they are created)
 import WordFrequencyTab from './WordFrequencyTab';
 import SentimentAnalysisTab from './SentimentAnalysisTab';
-// import TextRelationshipsTab from './TextRelationshipsTab'; // Example placeholder
-// import TtrAnalysisTab from './TtrAnalysisTab'; // Example placeholder
-// import ConcordanceTab from './ConcordanceTab'; // Example placeholder
-// import TopicModelingTab from './TopicModelingTab'; // Example placeholder
+import TextRelationshipsTab from './TextRelationshipsTab'; // Import new component
+import TtrAnalysisTab from './TtrAnalysisTab'; // Import new component
+import ConcordanceTab from './ConcordanceTab'; // Import new component
+import TopicModelingTab from './TopicModelingTab'; // Import new component
 
 // Dynamically import components that might have issues with SSR or large size
-const ForceGraph2D = dynamic(
-  () => import('react-force-graph').then((mod) => mod.ForceGraph2D),
-  { ssr: false, loading: () => <p>Loading graph...</p> } // Add loading state for dynamic import
-);
+// ForceGraph is now inside TextRelationshipsTab, so dynamic import here might not be needed unless other large components are added.
+// const ForceGraph2D = dynamic(
+//   () => import('react-force-graph').then((mod) => mod.ForceGraph2D),
+//   { ssr: false, loading: () => <p>Loading graph...</p> } // Add loading state for dynamic import
+// );
 
 // Reusable TabPanel component (can be moved to utils)
 function TabPanel(props) {
@@ -44,30 +45,36 @@ function TabPanel(props) {
 const TextAnalysisVisualizations = ({ data }) => {
   const [activeTab, setActiveTab] = useState(0);
 
-  // Use the custom hook to get analysis data and loading state
+  // Use the text analysis hook
+  // IMPORTANT: Ensure the 'data' prop passed to this component has a stable reference.
+  // If 'data' is recreated on every render in the parent, it will cause this hook
+  // and its effects to run repeatedly, leading to the 'Maximum update depth exceeded' error.
   const {
     wordFrequencyData,
     sentimentData,
     relationshipData,
-    concordanceData,
     ttrData,
+    concordanceData,
     topicModelData,
-    isLoading, // Get loading state from hook
-    searchConcordance, // Get search function
+    isLoading,
+    searchConcordance // Function from the hook
   } = useTextAnalysis(data);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
 
-  // Handle concordance search input change
-  const handleConcordanceSearch = (term) => {
-      searchConcordance(term); // Call the function from the hook
-  };
+  // Memoize the handler passed to ConcordanceTab.
+  // This depends on searchConcordance from the hook, which should be stable due to useCallback within the hook.
+  const handleConcordanceSearch = useCallback((term) => {
+      if (searchConcordance) { // Check if the function exists before calling
+          searchConcordance(term);
+      }
+  }, [searchConcordance]); // Dependency is the memoized function from the hook
 
 
   // Show loading indicator centrally if analyses are running
-  if (isLoading) {
+  if (isLoading && !concordanceData) { // Adjust loading condition if needed
       return (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
               <CircularProgress />
@@ -115,46 +122,27 @@ const TextAnalysisVisualizations = ({ data }) => {
       </TabPanel>
 
       <TabPanel value={activeTab} index={2}>
-        {/* Placeholder for TextRelationshipsTab */}
-        {/* <TextRelationshipsTab relationshipData={relationshipData} isLoading={isLoading} /> */}
-         <Typography>Text Relationships Tab Content (Refactor Pending)</Typography>
-         {/* Example: Keep original logic here until refactored */}
-         {relationshipData.nodes.length < 2 ? (
-             <Typography variant="body2" color="text.secondary">Not enough data for relationships.</Typography>
-         ) : (
-             <Box sx={{ height: 400, border: '1px dashed grey', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                 {/* Ensure ForceGraph2D is loaded */}
-                 {typeof window !== 'undefined' && ForceGraph2D && (
-                     <ForceGraph2D
-                         graphData={relationshipData}
-                         nodeLabel="name"
-                         nodeAutoColorBy="name"
-                         linkDirectionalParticles={1}
-                         linkDirectionalParticleWidth={2}
-                         height={398} // Fit within box
-                         width={typeof window !== 'undefined' ? window.innerWidth * 0.8 : 600} // Adjust width dynamically or set fixed
-                     />
-                 )}
-             </Box>
-         )}
+        {/* Use the new TextRelationshipsTab component */}
+        <TextRelationshipsTab relationshipData={relationshipData} isLoading={isLoading} />
       </TabPanel>
 
       <TabPanel value={activeTab} index={3}>
-        {/* Placeholder for TtrAnalysisTab */}
-        {/* <TtrAnalysisTab ttrData={ttrData} isLoading={isLoading} /> */}
-         <Typography>TTR Analysis Tab Content (Refactor Pending)</Typography>
+        {/* Use the new TtrAnalysisTab component */}
+        <TtrAnalysisTab ttrData={ttrData} isLoading={isLoading} />
       </TabPanel>
 
       <TabPanel value={activeTab} index={4}>
-         {/* Placeholder for ConcordanceTab */}
-         {/* <ConcordanceTab concordanceData={concordanceData} onSearch={handleConcordanceSearch} isLoading={isLoading} /> */}
-         <Typography>Concordance Tab Content (Refactor Pending)</Typography>
+         {/* Pass the memoized handleConcordanceSearch */}
+         <ConcordanceTab
+            concordanceData={concordanceData}
+            onSearch={handleConcordanceSearch} // Pass the memoized handler
+            isLoading={isLoading}
+         />
       </TabPanel>
 
       <TabPanel value={activeTab} index={5}>
-         {/* Placeholder for TopicModelingTab */}
-         {/* <TopicModelingTab topicModelData={topicModelData} isLoading={isLoading} /> */}
-         <Typography>Topic Modeling Tab Content (Refactor Pending)</Typography>
+         {/* Use the new TopicModelingTab component */}
+         <TopicModelingTab topicModelData={topicModelData} isLoading={isLoading} />
       </TabPanel>
 
     </Box>

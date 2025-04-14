@@ -37,6 +37,7 @@ local.properties
 
 # node.js
 #
+.env
 node_modules/
 .next/
 npm-debug.log

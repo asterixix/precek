@@ -10,9 +10,11 @@ const nextConfig = {
   output: 'export',
 
   // Make environment variables available to the server-side build/runtime
+  // AND client-side if prefixed with NEXT_PUBLIC_
   env: {
     NEXT_PUBLIC_OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    // Expose OpenRouter key to the client-side bundle
+    NEXT_PUBLIC_OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     // GOOGLE_FACT_CHECK_API_KEY: process.env.GOOGLE_FACT_CHECK_API_KEY, // Remove Google key - not provided via env
   },
 

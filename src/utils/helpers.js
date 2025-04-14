@@ -68,33 +68,47 @@ export const readPdfFile = async (file) => {
 };
 
 /**
- * Retrieves API keys from various sources (window, localStorage, process.env).
- * Prioritizes window object, then localStorage, then environment variables.
- * @returns {{openai: string, openrouter: string, googleFactCheck: string}}
+ * Retrieves API keys from various sources.
+ * Priority:
+ *   - OpenAI: window.__PRECEK_API_KEYS > localStorage > process.env (build-time/public).
+ *   - OpenRouter: process.env (build-time/public ONLY).
+ * @returns {{openai: string, openrouter: string}}
  */
 export const getApiKeys = () => {
-  // Client-side logic
+  let openai = '';
+  // Always prioritize the build-time key for OpenRouter
+  const openrouter = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '';
+  const buildTimeOpenAI = process.env.NEXT_PUBLIC_OPENAI_API_KEY || '';
+
+  // Client-side logic for OpenAI key
   if (typeof window !== 'undefined') {
-    // Prioritize keys set directly on the window object (e.g., by ApiKeyForm)
-    if (window.__PRECEK_API_KEYS) {
-      return {
-        openai: window.__PRECEK_API_KEYS.openai || '',
-        openrouter: window.__PRECEK_API_KEYS.openrouter || '',
-        googleFactCheck: window.__PRECEK_API_KEYS.googleFactCheck || '', // Get Google key
-      };
+    // 1. Prioritize OpenAI key set directly on the window object
+    if (window.__PRECEK_API_KEYS && window.__PRECEK_API_KEYS.openai) {
+      openai = window.__PRECEK_API_KEYS.openai;
     }
-    // Fallback to individual window properties or localStorage
-    return {
-      openai: window.NEXT_PUBLIC_OPENAI_API_KEY || localStorage.getItem('openai_api_key') || '',
-      openrouter: window.OPENROUTER_API_KEY || localStorage.getItem('openrouter_api_key') || '',
-      googleFactCheck: window.GOOGLE_FACT_CHECK_API_KEY || localStorage.getItem('google_fact_check_api_key') || '', // Get Google key
-    };
+
+    // 2. Fallback to localStorage for OpenAI key
+    if (!openai) {
+      openai = localStorage.getItem('openai_api_key') || '';
+    }
+
+    // 3. Fallback to build-time environment variable for OpenAI key
+    if (!openai) {
+      openai = buildTimeOpenAI;
+    }
+
+    // Deprecated check (can likely be removed if migration to __PRECEK_API_KEYS is complete)
+    // if (!openai) {
+    //   openai = window.NEXT_PUBLIC_OPENAI_API_KEY || '';
+    // }
+
+  } else {
+    // Server-side or build-time logic (environment variables only)
+    openai = buildTimeOpenAI;
   }
 
-  // Server-side or build-time logic (environment variables)
   return {
-    openai: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
-    openrouter: process.env.OPENROUTER_API_KEY || '',
-    googleFactCheck: process.env.GOOGLE_FACT_CHECK_API_KEY || '', // Get Google key from env
+    openai: openai,
+    openrouter: openrouter, // Return the build-time key directly
   };
 };

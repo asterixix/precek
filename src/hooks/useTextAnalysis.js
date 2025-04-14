@@ -1,7 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react'; // Import useMemo
 import Sentiment from 'sentiment';
 // Note: Topic modeling logic might need more robust libraries for production
 // e.g., using server-side processing or WebAssembly-based libraries.
+
+// Helper functions (keep outside or memoize if needed, but they seem pure)
+const cleanWord = (word) => word.toLowerCase().replace(/[.,;:!?()[\]{}'"]/g, '');
+const stopWords = new Set(['the', 'and', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'is', 'are', 'be', 'this', 'that', 'with', 'from', 'by', 'was', 'were', 'has', 'have', 'had', 'it', 'as', 'not', 'or', 'but']);
+function truncateText(text, maxLength) {
+  if (!text) return '';
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+
+function countItems(arr) {
+  return arr.reduce((acc, item) => {
+    acc[item] = (acc[item] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function sortEntries(obj) {
+  return Object.entries(obj).sort((a, b) => b[1] - a[1]);
+}
+
 
 const useTextAnalysis = (data) => {
   const [wordFrequencyData, setWordFrequencyData] = useState([]);
@@ -10,16 +30,17 @@ const useTextAnalysis = (data) => {
   const [concordanceData, setConcordanceData] = useState([]);
   const [ttrData, setTtrData] = useState({ ttr: 0, uniqueWords: 0, totalWords: 0 });
   const [topicModelData, setTopicModelData] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); // Add loading state
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Define stop words set for reuse
-  const stopWords = new Set(['the', 'and', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'is', 'are', 'be', 'this', 'that', 'with', 'from', 'by', 'was', 'were', 'has', 'have', 'had', 'it', 'as', 'not', 'or', 'but']);
+  // Memoize the combined text to avoid recalculating it multiple times
+  const allText = useMemo(() => {
+    if (!data || data.length === 0) return '';
+    return data.map(item => item.processingResult || item.content || '').join(' ');
+  }, [data]);
 
-  // Helper to clean words
-  const cleanWord = (word) => word.toLowerCase().replace(/[.,;:!?()[\]{}'"]/g, '');
+  // --- Processing Functions (Return results, don't set state) ---
 
-  // Process word frequency data
-  const processWordFrequency = useCallback((textData) => {
+  const calculateWordFrequency = useCallback((textData) => {
     const allText = textData
       .map(item => item.processingResult || item.content || '')
       .join(' ')
@@ -40,12 +61,10 @@ const useTextAnalysis = (data) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 50); // Top 50
 
-    setWordFrequencyData(sortedWords);
-     return sortedWords; // Return data for potential direct use
-  }, [stopWords]); // Include stopWords dependency
+    return sortedWords; // Return the result
+  }, [stopWords]); // Dependency is stable
 
-  // Process sentiment analysis data
-  const processSentimentAnalysis = useCallback((textData) => {
+  const calculateSentimentAnalysis = useCallback((textData) => {
     const sentimentAnalyzer = new Sentiment();
     const sentiments = textData.map(item => {
       const text = item.processingResult || item.content || '';
@@ -89,12 +108,10 @@ const useTextAnalysis = (data) => {
         negativeCount: allNegativeWords.length
       }
     };
-    setSentimentData(processedSentiment);
-    return processedSentiment;
-  }, []); // No external dependencies needed here if helpers are pure
+    return processedSentiment; // Return the result
+  }, []); // Dependencies are stable (assuming helpers are pure)
 
-  // Process relationships (simplified example)
-  const processRelationships = useCallback((textData) => {
+  const calculateRelationships = useCallback((textData) => {
     const nodes = textData.map((item, index) => ({
       id: item.id || index.toString(), // Use item ID if available
       name: item.originalName || `Text ${index + 1}`,
@@ -114,20 +131,16 @@ const useTextAnalysis = (data) => {
       }
     }
     */
-   const processedRelations = { nodes, links };
-    setRelationshipData(processedRelations);
-    return processedRelations;
-  }, []);
+    return { nodes, links }; // Return the result
+  }, []); // Dependencies are stable
 
-  // Process concordance
-  const processConcordance = useCallback((allText, term) => {
-    if (!term || term.trim() === '') {
-      setConcordanceData([]);
-      return [];
+  const calculateConcordance = useCallback((textToSearch, term) => {
+    if (!term || term.trim() === '' || !textToSearch) {
+      return []; // Return empty array
     }
 
     const searchTermLower = term.toLowerCase();
-    const words = allText.split(/\s+/); // Keep original case for context display
+    const words = textToSearch.split(/\s+/); // Keep original case for context display
     const contextWindow = 7; // Slightly larger window
     const results = [];
 
@@ -149,19 +162,15 @@ const useTextAnalysis = (data) => {
         });
       }
     });
-    setConcordanceData(results);
-    return results;
-  }, []); // cleanWord is stable if defined outside or included
+    return results; // Return the result
+  }, []); // Dependencies are stable
 
-  // Process Type-Token Ratio (TTR)
-  const processTTR = useCallback((allText) => {
-    if (!allText || allText.trim() === '') {
-       const defaultTTR = { ttr: 0, uniqueWords: 0, totalWords: 0 };
-       setTtrData(defaultTTR);
-       return defaultTTR;
+  const calculateTTR = useCallback((textToCalc) => {
+    if (!textToCalc || textToCalc.trim() === '') {
+       return { ttr: 0, uniqueWords: 0, totalWords: 0 }; // Return default
     }
 
-    const words = allText.toLowerCase()
+    const words = textToCalc.toLowerCase()
                       .split(/\s+/)
                       .filter(word => word.length > 0)
                       .map(cleanWord); // Use cleaner
@@ -171,13 +180,14 @@ const useTextAnalysis = (data) => {
     const ttr = totalWords > 0 ? uniqueWords / totalWords : 0;
 
     const processedTTR = { ttr, uniqueWords, totalWords };
-    setTtrData(processedTTR);
-    return processedTTR;
-  }, []); // cleanWord dependency
+    return processedTTR; // Return the result
+  }, []); // Dependencies are stable
 
-  // Process topic modeling (simplified co-occurrence)
-   const processTopicModeling = useCallback((allText) => {
-    const sentences = allText.split(/[.!?]+/).filter(s => s.trim().length > 5); // Min sentence length
+   const calculateTopicModeling = useCallback((textToModel) => {
+     if (!textToModel || textToModel.trim() === '') {
+         return []; // Return empty array
+     }
+    const sentences = textToModel.split(/[.!?]+/).filter(s => s.trim().length > 5); // Min sentence length
     const cooccurrences = {};
 
     sentences.forEach(sentence => {
@@ -245,55 +255,65 @@ const useTextAnalysis = (data) => {
         normalizedStrength: topic.strength / maxStrength
     }));
 
-    setTopicModelData(finalTopics);
-    return finalTopics;
-  }, [stopWords]); // Dependencies
+    return finalTopics; // Return the result
+  }, [stopWords]); // Dependency is stable
 
-  // Main effect to run all analyses when data changes
+  // --- Main Effect ---
   useEffect(() => {
+    // Check if data is valid
     if (!data || data.length === 0) {
-      // Reset all states if data is empty
+      // Reset all states if data is empty or invalid
       setWordFrequencyData([]);
       setSentimentData({ items: [], overall: {} });
       setRelationshipData({ nodes: [], links: [] });
-      setConcordanceData([]);
+      setConcordanceData([]); // Reset concordance
       setTtrData({ ttr: 0, uniqueWords: 0, totalWords: 0 });
       setTopicModelData([]);
-      setIsLoading(false);
-      return;
+      setIsLoading(false); // Ensure loading is off
+      return; // Exit early
     }
 
+    // Start loading state
     setIsLoading(true);
-    // Combine all text once
-    const allText = data
-      .map(item => item.processingResult || item.content || '')
-      .join(' ');
 
-    // Run all processing functions
-    // Use Promise.all for potentially parallelizable tasks if they were async
-    // For now, run sequentially as they depend on `allText` or `data`
     try {
-        processWordFrequency(data);
-        processSentimentAnalysis(data);
-        processRelationships(data);
-        processConcordance(allText, ''); // Initial empty concordance
-        processTTR(allText);
-        processTopicModeling(allText);
+      // Perform calculations using the memoized 'allText' where appropriate
+      const frequency = calculateWordFrequency(data);
+      const sentiment = calculateSentimentAnalysis(data);
+      const relationships = calculateRelationships(data);
+      const ttr = calculateTTR(allText);
+      const topics = calculateTopicModeling(allText);
+      // Calculate initial empty concordance - important not to trigger state update loop here
+      const initialConcordance = calculateConcordance(allText, '');
+
+      // Update all states *after* calculations are done
+      setWordFrequencyData(frequency);
+      setSentimentData(sentiment);
+      setRelationshipData(relationships);
+      setTtrData(ttr);
+      setTopicModelData(topics);
+      setConcordanceData(initialConcordance); // Set initial empty concordance
+
     } catch (error) {
-        console.error("Error during text analysis processing:", error);
-        // Handle error state if needed
+        console.error("Error during initial text analysis processing:", error);
+        // Optionally set an error state here
     } finally {
+        // Stop loading state regardless of success or error
         setIsLoading(false);
     }
+    // Dependencies: Only 'data' and the memoized 'allText'.
+    // The calculation functions are stable due to useCallback and stable dependencies.
+  }, [data, allText, calculateWordFrequency, calculateSentimentAnalysis, calculateRelationships, calculateConcordance, calculateTTR, calculateTopicModeling]);
 
-  }, [data, processWordFrequency, processSentimentAnalysis, processRelationships, processConcordance, processTTR, processTopicModeling]); // Add all processing functions to dependency array
-
-  // Function to update concordance search term
+  // --- Concordance Search Function ---
   const searchConcordance = useCallback((term) => {
-     if (!data || data.length === 0) return;
-     const allText = data.map(item => item.processingResult || item.content || '').join(' ');
-     processConcordance(allText, term);
-  }, [data, processConcordance]);
+     // No need to recalculate allText, use the memoized version
+     if (!allText) return; // Exit if no text
+     // Calculate new concordance based on the term
+     const results = calculateConcordance(allText, term);
+     // Update only the concordance state
+     setConcordanceData(results);
+  }, [allText, calculateConcordance]); // Depends on memoized text and stable calculation function
 
 
   return {
@@ -303,27 +323,9 @@ const useTextAnalysis = (data) => {
     concordanceData,
     ttrData,
     topicModelData,
-    isLoading, // Expose loading state
-    searchConcordance, // Expose search function
+    isLoading,
+    searchConcordance,
   };
 };
-
-// Helper functions (can be moved to utils if used elsewhere)
-function truncateText(text, maxLength) {
-  if (!text) return '';
-  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-}
-
-function countItems(arr) {
-  return arr.reduce((acc, item) => {
-    acc[item] = (acc[item] || 0) + 1;
-    return acc;
-  }, {});
-}
-
-function sortEntries(obj) {
-  return Object.entries(obj).sort((a, b) => b[1] - a[1]);
-}
-
 
 export default useTextAnalysis;

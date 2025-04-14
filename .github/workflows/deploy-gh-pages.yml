@@ -32,9 +32,14 @@ jobs:
       - name: Install Dependencies 📦
         run: npm ci --legacy-peer-deps
         # --legacy-peer-deps is used to avoid peer dependency issues with Next.js
-        
+
       - name: Build Next.js app
         run: npm run build
+        env:
+          # Pass the secret to the build process
+          NEXT_PUBLIC_OPENROUTER_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENROUTER_API_KEY }}
+          # Ensure NEXT_PUBLIC_OPENAI_API_KEY is also passed if needed for build
+          # NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
