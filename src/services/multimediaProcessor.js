@@ -1,6 +1,7 @@
 // This file will handle multimedia processing and AI integrations using web-compatible APIs
 import axios from 'axios';
 import { insertData } from './database';
+import { getApiKeys } from '/src/utils/helpers'; // Ensure helper is imported
 
 // Create axios instance with interceptors for error handling
 const apiClient = axios.create();
@@ -14,10 +15,15 @@ apiClient.interceptors.response.use(
         case 401:
           console.error('Authentication error: Invalid or expired API key');
           // We can redirect to API key config page or show a specific message
+          // Clear local storage keys on error if they were potentially invalid
           if (typeof window !== 'undefined') {
-            // Clear stored keys if they're invalid
-            localStorage.removeItem('openai_api_key');
-            localStorage.removeItem('openrouter_api_key');
+            try {
+              localStorage.removeItem('openai_api_key');
+              localStorage.removeItem('openrouter_api_key');
+              localStorage.removeItem('google_fact_check_api_key'); // Clear Google key too
+            } catch (e) {
+              console.warn("Could not clear API keys from localStorage:", e);
+            }
           }
           return Promise.reject(new Error('API key is invalid or expired. Please check your API key configuration.'));
         
@@ -259,39 +265,47 @@ const processText = async (text) => {
   }
 };
 
-// Helper function to get API keys from all possible sources
-const getAPIKeys = () => {
-  // Check for keys in our specific global object first (most reliable method)
+// Function to get API keys, prioritizing client-side if available
+// This might be redundant if getApiKeys helper is used consistently
+const getKeys = () => {
+  // Use the helper function for consistency
+  return getApiKeys();
+
+  /* // Old direct access logic (keep for reference or remove)
+  // Client-side check first
   if (typeof window !== 'undefined' && window.__PRECEK_API_KEYS) {
     const precekKeys = window.__PRECEK_API_KEYS;
-    if (precekKeys.openai || precekKeys.openrouter) {
-      return {
-        openAIApiKey: precekKeys.openai || '',
-        openRouterApiKey: precekKeys.openrouter || ''
-      };
-    }
+    return {
+      openai: precekKeys.openai || localStorage.getItem('openai_api_key') || process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
+      openrouter: precekKeys.openrouter || localStorage.getItem('openrouter_api_key') || process.env.OPENROUTER_API_KEY || '',
+      googleFactCheck: precekKeys.googleFactCheck || localStorage.getItem('google_fact_check_api_key') || process.env.GOOGLE_FACT_CHECK_API_KEY || '', // Get Google key
+    };
   }
-  
-  // Fall back to checking other sources
-  const openAIApiKey = 
-    (typeof window !== 'undefined' && window.NEXT_PUBLIC_OPENAI_API_KEY) ||
-    process.env.NEXT_PUBLIC_OPENAI_API_KEY || 
-    (typeof window !== 'undefined' && localStorage.getItem('openai_api_key')) || 
-    '';
-  
-  const openRouterApiKey = 
-    (typeof window !== 'undefined' && window.OPENROUTER_API_KEY) ||
-    process.env.OPENROUTER_API_KEY || 
-    (typeof window !== 'undefined' && localStorage.getItem('openrouter_api_key')) || 
-    '';
-    
-  return { openAIApiKey, openRouterApiKey };
+  // Fallback for client-side without __PRECEK_API_KEYS or server-side
+  return {
+    openai:
+      (typeof window !== 'undefined' && window.NEXT_PUBLIC_OPENAI_API_KEY) ||
+      process.env.NEXT_PUBLIC_OPENAI_API_KEY ||
+      (typeof window !== 'undefined' && localStorage.getItem('openai_api_key')) ||
+      '',
+    openrouter:
+      (typeof window !== 'undefined' && window.OPENROUTER_API_KEY) ||
+      process.env.OPENROUTER_API_KEY ||
+      (typeof window !== 'undefined' && localStorage.getItem('openrouter_api_key')) ||
+      '',
+    googleFactCheck:
+      (typeof window !== 'undefined' && window.GOOGLE_FACT_CHECK_API_KEY) ||
+      process.env.GOOGLE_FACT_CHECK_API_KEY ||
+      (typeof window !== 'undefined' && localStorage.getItem('google_fact_check_api_key')) ||
+      '', // Get Google key
+  };
+  */
 };
 
 // Function to call relevant API for processing based on media type
 const fetchAIProcessing = async (mediaType, content, filename = '') => {
   // Get API keys using our helper function
-  const { openAIApiKey, openRouterApiKey } = getAPIKeys();
+  const { openAIApiKey, openRouterApiKey } = getKeys();
 
   // Ensure we have at least one API key
   if (!openAIApiKey && !openRouterApiKey) {

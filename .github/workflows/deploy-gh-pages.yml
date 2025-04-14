@@ -33,9 +33,9 @@ jobs:
         run: npm ci --legacy-peer-deps
         # --legacy-peer-deps is used to avoid peer dependency issues with Next.js
         
-      - name: Build 🏗️
+      - name: Build Next.js app
         run: npm run build
-        
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

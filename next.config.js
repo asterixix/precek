@@ -1,33 +1,37 @@
 /** @type {import('next').NextConfig} */
-
 const nextConfig = {
-  // Enable static exports for GitHub Pages
-  output: 'export',
-  // Set the base path for GitHub Pages
-  basePath: process.env.NODE_ENV === 'production' ? '/precek' : '',
-  // Disable image optimization for static export
-  images: {
-    unoptimized: true,
-  },
-  // Enable React Native Web
   reactStrictMode: true,
-  transpilePackages: [
-    'react-native',
-    'react-native-web',
-    '@expo/vector-icons',
-  ],
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...(config.resolve.alias || {}),
-      'react-native$': 'react-native-web',
-    };
-    config.resolve.extensions = [
-      '.web.js',
-      '.web.jsx',
-      '.web.ts',
-      '.web.tsx',
-      ...config.resolve.extensions,
-    ];
+  // Configure basePath for GitHub Pages deployment
+  basePath: process.env.NODE_ENV === 'production' ? '/precek' : '',
+  // Configure assetPrefix if needed for CSS/JS files on GitHub Pages
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/precek/' : '',
+
+  // Make environment variables available to the server-side build/runtime
+  env: {
+    NEXT_PUBLIC_OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    // GOOGLE_FACT_CHECK_API_KEY: process.env.GOOGLE_FACT_CHECK_API_KEY, // Remove Google key - not provided via env
+  },
+
+  // Optional: If you need the Google key client-side (not recommended for security)
+  // Remove this section as well if it exists
+  // publicRuntimeConfig: {
+  //   NEXT_PUBLIC_GOOGLE_FACT_CHECK_API_KEY: process.env.GOOGLE_FACT_CHECK_API_KEY,
+  // },
+  // Note: The key is now handled purely client-side via localStorage.
+
+  // If using `next export`, ensure trailingSlash is handled correctly if needed
+  // trailingSlash: true, // Usually needed for static exports on GH Pages without custom domain
+
+  // Add webpack config if needed for specific loaders or fallbacks
+  webpack: (config, { isServer }) => {
+    // Example: Fallback for 'fs' module if used client-side (unlikely here)
+    // if (!isServer) {
+    //   config.resolve.fallback = {
+    //     ...config.resolve.fallback,
+    //     fs: false,
+    //   };
+    // }
     return config;
   },
 };

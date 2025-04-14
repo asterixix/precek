@@ -3,7 +3,7 @@
   "compilerOptions": {
     "incremental": true,
     "jsx": "preserve",
-    "lib": ["ES2020.String", "ES2020.Promise"]
+    "lib": ["ES2020.String", "ES2020.Promise"] // Removed invalid entries "es2020.date" and "es2020.number"
   },
   "include": [
     "next-env.d.ts",

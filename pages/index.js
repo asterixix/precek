@@ -1,384 +1,217 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { processText, processImage, processAudio, processVideo } from '/src/services/multimediaProcessor';
 import { getAllData, exportToCSV, clearAllData } from '/src/services/database';
+import { readTextFile, readPdfFile, getApiKeys } from '/src/utils/helpers'; // Import helpers, including getApiKeys
+
+// Import Custom Components
+import ApiKeyForm from '/src/components/ApiKeyForm';
+import ProcessingControls from '/src/components/ProcessingControls';
+import ProcessedDataDisplay from '/src/components/ProcessedDataDisplay';
 
 // Import Material UI components
 import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import CardHeader from '@mui/material/CardHeader';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid';
-import Divider from '@mui/material/Divider';
 import Container from '@mui/material/Container';
 import Alert from '@mui/material/Alert';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import AudiotrackIcon from '@mui/icons-material/Audiotrack';
-import VideocamIcon from '@mui/icons-material/Videocam';
-import ImageIcon from '@mui/icons-material/Image';
-import TextFieldsIcon from '@mui/icons-material/TextFields';
-
-// Import PDF.js for PDF processing - client-side only
-let pdfjs = null;
-if (typeof window !== 'undefined') {
-  pdfjs = require('pdfjs-dist');
-  // Set the worker source to a CDN URL that matches our version
-  if (pdfjs) {
-    // Use a public CDN that's reliable
-    pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-  }
-}
+import CircularProgress from '@mui/material/CircularProgress'; // For loading state
 
 function HomePage() {
-  const [inputText, setInputText] = useState('');
-  const [result, setResult] = useState('');
   const [processedData, setProcessedData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [openAIKey, setOpenAIKey] = useState('');
-  const [openRouterKey, setOpenRouterKey] = useState('');
+  const [result, setResult] = useState(''); // Simple status message
+  const [apiKeys, setApiKeys] = useState({ openai: '', openrouter: '', googleFactCheck: '' }); // Include google key state
   const [keysConfigured, setKeysConfigured] = useState(false);
   const [showApiForm, setShowApiForm] = useState(false);
 
-  // Load data and API keys from storage on component mount
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const data = await getAllData();
-        setProcessedData(data || []);
-      } catch (err) {
-        console.error('Error loading data:', err);
-        setError('Failed to load existing data');
-      }
-    };
-
-    // Load API keys from localStorage if available
-    const savedOpenAIKey = localStorage.getItem('openai_api_key');
-    const savedOpenRouterKey = localStorage.getItem('openrouter_api_key');
-    
-    if (savedOpenAIKey || savedOpenRouterKey) {
-      setOpenAIKey(savedOpenAIKey || '');
-      setOpenRouterKey(savedOpenRouterKey || '');
-      setKeysConfigured(true);
-    } else {
-      setShowApiForm(true); // Show API form if no keys are found
+  // Load initial data and keys
+  const loadInitialData = useCallback(async () => {
+    try {
+      const data = await getAllData();
+      setProcessedData(data || []);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Failed to load existing data');
     }
 
-    loadData();
-  }, []);
+    // Use getApiKeys to load from localStorage/window consistently
+    const currentKeys = getApiKeys();
+    setApiKeys(currentKeys); // Update state with all keys
 
-  // This useEffect can be removed since we're already setting up the worker
-  // at initialization time above
-  useEffect(() => {
-    // PDF.js worker src is already set in the initialization above
-  }, []);
+    // Core processing depends on OpenAI or OpenRouter
+    const coreKeysConfigured = !!(currentKeys.openai || currentKeys.openrouter);
+    setKeysConfigured(coreKeysConfigured);
+    setShowApiForm(!coreKeysConfigured); // Show form if no core keys are found
 
-  // Process text using AI
-  const handleProcessText = async () => {
-    if (!inputText) {
-      alert('Please enter text to process');
-      return;
+    // Ensure keys are available globally on load (redundant if getApiKeys is used everywhere, but safe)
+    if (typeof window !== 'undefined') {
+       window.__PRECEK_API_KEYS = {
+         openai: currentKeys.openai,
+         openrouter: currentKeys.openrouter,
+         googleFactCheck: currentKeys.googleFactCheck, // Add Google key
+       };
+       // Also set individual properties if needed elsewhere (like multimediaProcessor fallback)
+       window.NEXT_PUBLIC_OPENAI_API_KEY = currentKeys.openai;
+       window.OPENROUTER_API_KEY = currentKeys.openrouter;
+       window.GOOGLE_FACT_CHECK_API_KEY = currentKeys.googleFactCheck; // Add Google key
     }
-    
+  }, []); // Empty dependency array ensures this runs only once on mount
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]); // Correctly include loadInitialData in dependencies
+
+  // Generic processing handler
+  const handleProcess = async (processor, input, inputName = 'input') => {
+    if (!keysConfigured) {
+        setError("API keys are not configured. Please configure them first.");
+        setShowApiForm(true);
+        return;
+    }
     setIsProcessing(true);
     setError('');
-    
+    setResult(''); // Clear previous result
+
     try {
-      // Process text using AI
-      const result = await processText(inputText);
-      
-      // Check if there was an error
-      if (result.error) {
-        throw new Error(result.processingResult);
+      const response = await processor(input, inputName); // Pass inputName for files
+
+      // Check for errors returned by the processor service
+      if (response && response.error) {
+        throw new Error(response.processingResult || 'Processing failed');
       }
-      
-      // Update the UI with processed data
-      setResult(`Successfully processed text: "${inputText.substring(0, 30)}${inputText.length > 30 ? '...' : ''}"`);
-      
-      // Update the list of processed items
+
+      setResult(`Successfully processed: ${inputName}`);
       const updatedData = await getAllData();
       setProcessedData(updatedData || []);
     } catch (err) {
-      console.error('Error processing text:', err);
-      
-      // Check for authentication errors
-      if (err.message.includes('API key is invalid') || 
-          err.message.includes('unauthorized') || 
-          err.message.includes('401')) {
-        setError('Authentication failed: Your API key appears to be invalid or expired. Please check your API keys in the configuration.');
-        
-        // Show the API form to let the user fix their keys
-        setShowApiForm(true);
-        setKeysConfigured(false);
+      console.error(`Error processing ${inputName}:`, err);
+      // Handle specific API key errors
+      if (err.message.includes('API key is invalid') || err.message.includes('unauthorized') || err.message.includes('401')) {
+        setError('Authentication failed: An API key might be invalid or expired. Please check your configuration.');
+        setKeysConfigured(false); // Mark as not configured
+        setShowApiForm(true); // Show form to fix
       } else {
-        setError(`Failed to process text: ${err.message || 'Unknown error'}`);
+        setError(`Failed to process ${inputName}: ${err.message || 'Unknown error'}`);
       }
-      
-      setResult('');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Process text file (.txt, .pdf, .epub)
-  const handleProcessTextFile = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) {
-      return;
-    }
+  // Specific handlers calling the generic one
+  const handleProcessText = (text) => {
+    handleProcess(processText, text, `"${truncateText(text, 30)}"`);
+  };
 
+  const handleProcessImage = (file) => {
+    handleProcess(processImage, file, file.name);
+  };
+
+  const handleProcessAudio = (file) => {
+    handleProcess(processAudio, file, file.name);
+  };
+
+  const handleProcessVideo = (file) => {
+    handleProcess(processVideo, file, file.name);
+  };
+
+  // Special handler for text files (potentially multiple)
+  const handleProcessTextFile = async (files) => {
+     if (!keysConfigured) {
+        setError("API keys are not configured. Please configure them first.");
+        setShowApiForm(true);
+        return;
+    }
     setIsProcessing(true);
     setError('');
-    
+    setResult('');
+
+    let processedCount = 0;
+    let errorCount = 0;
+    const fileNames = Array.from(files).map(f => f.name).join(', ');
+
     try {
-      let processedCount = 0;
-      let errorCount = 0;
-      
-      // Process each file sequentially
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (const file of files) {
         try {
-          let text = '';          if (file.name.toLowerCase().endsWith('.txt')) {
-            // Handle plain text files
+          let text = '';
+          const lowerCaseName = file.name.toLowerCase();
+          if (lowerCaseName.endsWith('.txt')) {
             text = await readTextFile(file);
-          } else if (file.name.toLowerCase().endswith('.pdf')) {
-            // Handle PDF files
-            if (!pdfjs) {
-              throw new Error('PDF processing is only available in browser environment');
-            }
+          } else if (lowerCaseName.endsWith('.pdf')) {
             text = await readPdfFile(file);
           } else {
-            continue; // Skip unsupported files
+             console.warn(`Skipping unsupported file type: ${file.name}`);
+             continue; // Skip unsupported files silently in UI for now
           }
-          
+
           if (!text || text.trim().length === 0) {
-            errorCount++;
-            continue;
+             console.warn(`Skipping empty or unreadable file: ${file.name}`);
+             errorCount++; // Count as error if text extraction failed or was empty
+             continue;
           }
-          
-          // Process the extracted text with AI
-          await processText(text, file.name);
+
+          // Process the extracted text
+          const response = await processText(text, file.name);
+          if (response && response.error) {
+              throw new Error(response.processingResult || `Processing failed for ${file.name}`);
+          }
           processedCount++;
         } catch (fileError) {
           console.error(`Error processing file ${file.name}:`, fileError);
           errorCount++;
+           // Propagate API key errors immediately
+          if (fileError.message.includes('API key is invalid') || fileError.message.includes('unauthorized') || fileError.message.includes('401')) {
+              throw fileError; // Re-throw to be caught by outer catch
+          }
         }
       }
 
-      // Update the UI based on results
+      // Update UI based on results
       if (processedCount > 0 && errorCount === 0) {
-        setResult(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''}`);
+        setResult(`Successfully processed ${processedCount} file(s): ${truncateText(fileNames, 50)}`);
       } else if (processedCount > 0 && errorCount > 0) {
-        setResult(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''} with ${errorCount} error${errorCount !== 1 ? 's' : ''}`);
+        setResult(`Processed ${processedCount} file(s) with ${errorCount} error(s).`);
+        setError(`Failed to process ${errorCount} file(s). Check console for details.`); // Provide some error feedback
       } else if (errorCount > 0) {
-        throw new Error(`Failed to process ${errorCount} file${errorCount !== 1 ? 's' : ''}`);
+        throw new Error(`Failed to process ${errorCount} file(s).`);
+      } else {
+         setResult("No supported files found or processed."); // Handle case where no .txt/.pdf files were selected
       }
-      
-      // Update the list of processed items
+
       const updatedData = await getAllData();
       setProcessedData(updatedData || []);
+
     } catch (err) {
-      console.error('Error processing text files:', err);
-      setError(`Failed to process text files: ${err.message || 'Unknown error'}`);
-      setResult('');
+       console.error('Error processing text files:', err);
+       // Handle specific API key errors from the loop
+       if (err.message.includes('API key is invalid') || err.message.includes('unauthorized') || err.message.includes('401')) {
+         setError('Authentication failed: An API key might be invalid or expired. Please check your configuration.');
+         setKeysConfigured(false);
+         setShowApiForm(true);
+       } else {
+          setError(`Failed to process files: ${err.message || 'Unknown error'}`);
+       }
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Read text from a .txt file
-  const readTextFile = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target.result);
-      reader.onerror = (e) => reject(new Error('Error reading text file'));
-      reader.readAsText(file);
-    });
-  };
-  // Read text from a PDF file
-  const readPdfFile = async (file) => {
-    if (!pdfjs) {
-      throw new Error('PDF processing is only available in browser environment');
-    }
-    
-    try {
-      // Convert file to array buffer
-      const arrayBuffer = await file.arrayBuffer();
-      
-      // Ensure the worker URL is set correctly
-      // Use the same unpkg CDN URL as defined at initialization
-      pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-      
-      // Load PDF document
-      const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      
-      // Extract text from each page
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const textItems = textContent.items.map(item => item.str);
-        const pageText = textItems.join(' ');
-        fullText += pageText + '\n\n';
-      }
-      
-      return fullText;
-    } catch (error) {
-      console.error('Error reading PDF:', error);
-      throw new Error('Failed to extract text from PDF');
-    }
-  };
-
-  // Process audio using AI
-  const handleProcessAudio = async () => {
-    setIsProcessing(true);
-    setError('');
-    
-    // Create file input element
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'audio/*';
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        try {
-          // Process audio using AI
-          await processAudio(file);
-          
-          setResult(`Successfully processed audio: ${file.name}`);
-          
-          // Update the list of processed items
-          const updatedData = await getAllData();
-          setProcessedData(updatedData || []);
-        } catch (err) {
-          console.error('Error processing audio:', err);
-          setError(`Failed to process audio: ${err.message || 'Unknown error'}`);
-          setResult('');
-        } finally {
-          setIsProcessing(false);
-        }
-      } else {
-        setIsProcessing(false);
-      }
-    };
-    
-    input.click();
-  };
-  // Process video using AI
-  const handleProcessVideo = async () => {
-    setIsProcessing(true);
-    setError('');
-    
-    // Create file input element
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'video/*';
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        try {
-          // Process video using AI
-          await processVideo(file);
-          
-          setResult(`Successfully processed video: ${file.name}`);
-          
-          // Update the list of processed items
-          const updatedData = await getAllData();
-          setProcessedData(updatedData || []);
-        } catch (err) {
-          console.error('Error processing video:', err);
-          setError(`Failed to process video: ${err.message || 'Unknown error'}`);
-          setResult('');
-        } finally {
-          setIsProcessing(false);
-        }
-      } else {
-        setIsProcessing(false);
-      }
-    };
-    
-    input.click();
-  };
-  
-  // Process image using AI
-  const handleProcessImage = async () => {
-    setIsProcessing(true);
-    setError('');
-    
-    // Create file input element
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        try {
-          // Process image using AI
-          const result = await processImage(file);
-          
-          // Check if there was an error
-          if (result.error) {
-            throw new Error(result.processingResult);
-          }
-          
-          setResult(`Successfully processed image: ${file.name}`);
-          
-          // Update the list of processed items
-          const updatedData = await getAllData();
-          setProcessedData(updatedData || []);
-        } catch (err) {
-          console.error('Error processing image:', err);
-          
-          // Check for authentication errors
-          if (err.message.includes('API key is invalid') || 
-              err.message.includes('unauthorized') || 
-              err.message.includes('401')) {
-            setError('Authentication failed: Your API key appears to be invalid or expired. Please check your API keys in the configuration.');
-            
-            // Show the API form to let the user fix their keys
-            setShowApiForm(true);
-            setKeysConfigured(false);
-          } else {
-            setError(`Failed to process image: ${err.message || 'Unknown error'}`);
-          }
-          
-          setResult('');
-        } finally {
-          setIsProcessing(false);
-        }
-      } else {
-        setIsProcessing(false);
-      }
-    };
-    
-    input.click();
-  };
 
   // Export data to CSV
   const handleExportToCSV = async () => {
     try {
-      // Get CSV data from database service
       const csvContent = await exportToCSV();
-      
-      // Create download link
-      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); // Ensure UTF-8
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.setAttribute('hidden', '');
-      a.setAttribute('href', url);
-      a.setAttribute('download', 'precek_data.csv');
+      a.href = url;
+      a.download = 'precek_data.csv';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
+      URL.revokeObjectURL(url); // Clean up
       setResult('Data exported to CSV successfully');
     } catch (err) {
       console.error('Error exporting to CSV:', err);
@@ -388,44 +221,29 @@ function HomePage() {
 
   // Clear all data
   const handleClearData = async () => {
-    if (window.confirm('Are you sure you want to clear all processed data? This action cannot be undone.')) {
+    if (window.confirm('Are you sure you want to clear ALL processed data? This cannot be undone.')) {
       try {
         await clearAllData();
         setProcessedData([]);
         setResult('All data has been cleared');
+        setError('');
       } catch (err) {
         console.error('Error clearing data:', err);
         setError('Failed to clear data');
       }
     }
-  };  // Save API keys to localStorage and update environment variables
-  const handleSaveApiKeys = () => {
-    // Validate keys
-    if ((!openAIKey && !openRouterKey) || (openAIKey && !openAIKey.startsWith('sk-')) || (openRouterKey && !openRouterKey.startsWith('sk-or-'))) {
-      setError('Please enter valid API keys. OpenAI keys start with "sk-" and OpenRouter keys start with "sk-or-"');
-      return;
-    }
-    
-    // Save to localStorage for future sessions
-    if (openAIKey) localStorage.setItem('openai_api_key', openAIKey);
-    if (openRouterKey) localStorage.setItem('openrouter_api_key', openRouterKey);
+  };
 
-    // Set global variables that will be accessed by the multimedia processor
-    if (typeof window !== 'undefined') {
-      window.NEXT_PUBLIC_OPENAI_API_KEY = openAIKey || '';
-      window.OPENROUTER_API_KEY = openRouterKey || '';
-      
-      // Also explicitly set these as window properties for consistent access
-      window.__PRECEK_API_KEYS = {
-        openai: openAIKey || '',
-        openrouter: openRouterKey || '',
-      };
-    }
-
-    setKeysConfigured(true);
+  // Handle saving keys from the form
+  const handleKeysSaved = () => {
+    // ApiKeyForm already saved to localStorage and updated window object.
+    // We just need to re-check the configuration status based on core keys.
+    const currentKeys = getApiKeys(); // Re-read keys
+    setApiKeys(currentKeys); // Update local state
+    setKeysConfigured(!!(currentKeys.openai || currentKeys.openrouter));
     setShowApiForm(false);
-    setError('');
-    setResult('API keys configured successfully!');
+    setError(''); // Clear any previous errors like "keys not configured"
+    setResult('API keys saved successfully!'); // Provide user feedback
   };
 
   // Handle changing API keys
@@ -434,370 +252,84 @@ function HomePage() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4, px: 2 }}>
-      <Box component="header" sx={{ mb: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 4, px: { xs: 1, sm: 2 } }}> {/* Responsive padding */}
+      <Box component="header" sx={{ mb: 4, textAlign: 'center' }}> {/* Center header */}
         <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold' }}>Precek</Typography>
-        <Typography variant="body1" color="text.secondary">Text, Image, Audio, and Video Processing with AI</Typography>
+        <Typography variant="body1" color="text.secondary">AI-Powered Multimedia Analysis</Typography>
       </Box>
-      
-      {/* API Keys Configuration Form */}
-      {showApiForm && (
-        <Card variant="outlined" sx={{ mb: 3 }}>
-          <CardHeader 
-            title={<Typography variant="h5">API Configuration</Typography>}
-            subheader={<Typography color="text.secondary">Enter your API keys to use this application</Typography>}
-          />
-          <CardContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Typography>
-                To use Precek, you need to provide at least one of the following API keys:
-              </Typography>
-              
-              <TextField
-                label="OpenAI API Key"
-                value={openAIKey}
-                onChange={(e) => setOpenAIKey(e.target.value)}
-                fullWidth
-                placeholder="sk-..."
-                helperText="Get your API key from https://platform.openai.com/account/api-keys"
-                type="password"
-              />
-              
-              <Typography variant="body2" color="text.secondary" sx={{ my: 1 }}>OR</Typography>
-              
-              <TextField
-                label="OpenRouter API Key"
-                value={openRouterKey}
-                onChange={(e) => setOpenRouterKey(e.target.value)}
-                fullWidth
-                placeholder="sk-or-..."
-                helperText="Get your API key from https://openrouter.ai/keys"
-                type="password"
-              />
-              
-              <Button 
-                variant="contained" 
-                onClick={handleSaveApiKeys}
-                sx={{ mt: 1 }}
-              >
-                Save API Keys
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link href="/visualization" passHref style={{ textDecoration: 'none' }}>
-            <Button
-              variant="contained"
-              color="primary"
-              size="medium"
-              endIcon={<Box component="span" sx={{ fontSize: '1.2rem', ml: 0.5 }}>→</Box>}
-              sx={{ 
-                borderRadius: 2,
-                boxShadow: 2,
-                '&:hover': { 
-                  transform: 'translateY(-2px)',
-                  boxShadow: 3,
-                  transition: 'all 0.2s ease-in-out'
-                }
-              }}
-            >
-              View Data Visualizations
-            </Button>
-          </Link>
-          
-          {keysConfigured && (
-            <Button 
-              variant="outlined" 
-              size="small" 
-              onClick={handleChangeApiKeys} 
-              sx={{ ml: 2 }}
-            >
-              Change API Keys
-            </Button>
-          )}
-        </Box><Card variant="outlined" sx={{ mb: 3 }}>
-          <CardHeader 
-            title={<Typography variant="h5">Process Content</Typography>}
-            subheader={<Typography color="text.secondary">Use AI models to process text, images, audio, and video</Typography>}
-          />
-          <CardContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Text Input
-                </Typography>                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <TextField
-                    id="text-input"
-                    fullWidth
-                    multiline
-                    minRows={4}
-                    maxRows={12}
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    placeholder="Enter text to process"
-                    variant="outlined"
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        padding: '12px',
-                        fontFamily: 'inherit'
-                      }
-                    }}
-                  />
-                  <Button 
-                    variant="contained" 
-                    onClick={handleProcessText} 
-                    disabled={isProcessing}
-                    startIcon={<TextFieldsIcon />}
-                    sx={{ alignSelf: 'flex-end' }}
-                  >
-                    Process Text
-                  </Button>
-                </Box>
-              </Box>
-              
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Or Upload Text Files
-                </Typography>                  <Button
-                    variant="outlined"
-                    component="span"
-                    disabled={isProcessing}
-                    startIcon={<CloudUploadIcon />}                    onClick={() => {
-                      const input = document.createElement('input');
-                      input.type = 'file';
-                      input.accept = '.txt,.pdf';
-                      input.multiple = true;
-                      input.onchange = handleProcessTextFile;
-                      input.click();
-                    }}
-                  >
-                    Upload Text File (.txt, .pdf)
-                  </Button>
-              </Box>              <Divider sx={{ my: 1 }} />
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>                <Button 
-                  onClick={handleProcessImage} 
-                  variant="outlined" 
-                  disabled={isProcessing || !keysConfigured}
-                  startIcon={<ImageIcon />}
-                  sx={{ mr: 1, mb: 1 }}
-                  title={!keysConfigured ? "API key required for image processing" : ""}
-                >
-                  Process Image
-                </Button>
-                <Button 
-                  onClick={handleProcessAudio} 
-                  variant="outlined" 
-                  disabled={isProcessing || !keysConfigured}
-                  startIcon={<AudiotrackIcon />}
-                  sx={{ mr: 1, mb: 1 }}
-                  title={!keysConfigured ? "API key required for audio processing" : ""}
-                >
-                  Process Audio
-                </Button>
-                <Button 
-                  onClick={handleProcessVideo} 
-                  variant="outlined" 
-                  disabled={isProcessing || !keysConfigured}
-                  startIcon={<VideocamIcon />}
-                  sx={{ mr: 1, mb: 1 }}
-                  title={!keysConfigured ? "API key required for video processing" : ""}
-                >
-                  Process Video
-                </Button>
-                <Button 
-                  onClick={handleExportToCSV} 
-                  variant="contained"
-                  color="secondary" 
-                  disabled={isProcessing || processedData.length === 0}
-                  sx={{ mr: 1, mb: 1 }}
-                >
-                  Export to CSV
-                </Button>                <Button 
-                  onClick={handleClearData} 
-                  variant="contained"
-                  color="error" 
-                  disabled={isProcessing || processedData.length === 0}
-                  sx={{ mb: 1 }}
-                >
-                  Clear Data
-                </Button>
-              </Box>
-            </Box>
-          </CardContent>        </Card>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
 
-        {result && (
-          <Card sx={{ mb: 3 }}>
-            <CardContent sx={{ pt: 3 }}>
-              <Typography variant="h6" sx={{ mb: 1 }}>Processing Result:</Typography>
-              <Typography variant="body1">{result}</Typography>
-              {isProcessing && <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>Processing...</Typography>}
-            </CardContent>
-          </Card>
-        )}        {processedData.length > 0 && (
-          <Card>
-            <CardHeader 
-              title={<Typography variant="h6">Processed Data</Typography>}
-              subheader={<Typography variant="body2" color="text.secondary">
-                Results from AI processing ({processedData.length} items)
-              </Typography>}
-            />            <CardContent>
-              <Grid container spacing={2}>
-                {processedData.slice(0, 10).map((item, index) => (
-                  <Grid item xs={12} md={6} key={index}>
-                    <Card sx={{ overflow: 'hidden' }}>
-                      <CardContent sx={{ p: 0 }}>
-                      {item.type === 'image' && item.data && (
-                        <Box sx={{ 
-                          height: '10rem', 
-                          bgcolor: 'action.hover',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <Box 
-                            component="img" 
-                            src={item.data} 
-                            alt="Processed" 
-                            sx={{ maxHeight: '100%', objectFit: 'contain' }}
-                          />
-                        </Box>
-                      )}
-                      {item.type === 'audio' && item.data && (
-                        <Box sx={{ p: 2 }}>
-                          <Box 
-                            component="audio" 
-                            controls
-                            src={item.data} 
-                            sx={{ width: '100%' }}
-                          />
-                        </Box>
-                      )}
-                      {item.type === 'video' && item.data && (
-                        <Box sx={{ p: 2 }}>
-                          <Box 
-                            component="video" 
-                            controls
-                            src={item.data} 
-                            sx={{ width: '100%', height: '10rem', objectFit: 'contain' }}
-                          />
-                        </Box>
-                      )}
-                      <Box sx={{ p: 2 }}>
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: 1,
-                          mb: 1 
-                        }}>
-                          <Box sx={{ 
-                            width: '0.75rem', 
-                            height: '0.75rem', 
-                            borderRadius: '50%', 
-                            bgcolor: getTypeColorMui(item.type)
-                          }} />
-                          <Typography variant="body2" fontWeight="medium">
-                            {item.type.toUpperCase()}
-                          </Typography>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary" 
-                            sx={{ ml: 'auto' }}
-                          >
-                            {new Date(item.timestamp).toLocaleString()}
-                          </Typography>
-                        </Box>                        {(item.type === 'text' || item.processingResult) && (
-                          <>
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                display: '-webkit-box',
-                                WebkitLineClamp: 3,
-                                WebkitBoxOrient: 'vertical',
-                              }}
-                            >
-                              {item.type === 'text' 
-                                ? truncateText(item.content || '', 150) 
-                                : truncateText(item.processingResult || '', 150)
-                              }
-                            </Typography>
-                            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                              <Link href={`/readtext?id=${item.id}`} passHref style={{ textDecoration: 'none' }}>
-                                <Button size="small" variant="outlined">
-                                  View Full Text
-                                </Button>
-                              </Link>
-                            </Box>
-                          </>
-                        )}
-                      </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-                {processedData.length > 10 && (
-                <Box sx={{ mt: 3, textAlign: 'center' }}>
-                  <Link href="/visualization" style={{ textDecoration: 'none' }}>
-                    <Typography color="primary" sx={{ 
-                      '&:hover': { textDecoration: 'underline' },
-                      cursor: 'pointer'
-                    }}>
-                      View all {processedData.length} items in visualizations →
-                    </Typography>
-                  </Link>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        )}      </Box>
+      {/* Top Controls: View Visualizations & Change API Keys */}
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Link href="/visualization" passHref style={{ textDecoration: 'none' }}>
+          <Button
+            variant="contained"
+            color="primary"
+            size="medium"
+            disabled={processedData.length === 0} // Disable if no data
+            sx={{ borderRadius: 2, boxShadow: 1 }}
+          >
+            View Data Visualizations
+          </Button>
+        </Link>
+
+        {keysConfigured && (
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleChangeApiKeys}
+          >
+            Change API Keys
+          </Button>
+        )}
+      </Box>
+
+      {/* API Key Form (Conditional) */}
+      {showApiForm && (
+        <ApiKeyForm
+          onKeysSaved={handleKeysSaved}
+          // No need to pass initial keys, ApiKeyForm reads them itself via useEffect
+        />
+      )}
+
+      {/* Processing Controls */}
+      <ProcessingControls
+        onProcessText={handleProcessText}
+        onProcessTextFile={handleProcessTextFile}
+        onProcessImage={handleProcessImage}
+        onProcessAudio={handleProcessAudio}
+        onProcessVideo={handleProcessVideo}
+        isProcessing={isProcessing}
+        keysConfigured={keysConfigured}
+      />
+
+      {/* Status Messages */}
+      {isProcessing && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', my: 2, gap: 1 }}>
+              <CircularProgress size={20} />
+              <Typography variant="body2" color="text.secondary">Processing...</Typography>
+          </Box>
+      )}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+      {result && !isProcessing && ( // Show result only when not processing
+        <Alert severity="success" sx={{ mb: 3 }}>
+            {result}
+        </Alert>
+      )}
+
+      {/* Processed Data Display */}
+      <ProcessedDataDisplay
+        processedData={processedData}
+        onExportToCSV={handleExportToCSV}
+        onClearData={handleClearData}
+        isProcessing={isProcessing}
+      />
+
     </Container>
   );
-}
-
-// Helper functions
-function truncateText(text, maxLength) {
-  if (!text) return '';
-  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-}
-
-function getTypeColor(type) {
-  switch (type) {
-    case 'text':
-      return 'bg-blue-500';
-    case 'image':
-      return 'bg-green-500';
-    case 'audio':
-      return 'bg-yellow-500';
-    case 'video':
-      return 'bg-purple-500';
-    default:
-      return 'bg-gray-500';
-  }
-}
-
-function getTypeColorMui(type) {
-  switch (type) {
-    case 'text':
-      return 'primary.main';
-    case 'image':
-      return 'success.main';
-    case 'audio':
-      return 'warning.main';
-    case 'video':
-      return 'secondary.main';
-    default:
-      return 'grey.500';
-  }
 }
 
 export default HomePage;
