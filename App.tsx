@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { TextInput, Button, Text, View, ScrollView } from 'react-native';
 import { processImage, processAudio, processVideo, processText } from './src/services/multimediaProcessor';
-import { createTable, exportToCSV } from './src/services/database';
+import { exportToCSV } from './src/services/database';
 
 function App(): React.JSX.Element {
   const [inputText, setInputText] = useState('');
@@ -32,7 +32,6 @@ function App(): React.JSX.Element {
   };
 
   const handleExportToCSV = async () => {
-    await createTable();
     const csv = await exportToCSV();
     console.log('CSV data:', csv);
   };
