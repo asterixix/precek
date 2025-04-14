@@ -44,38 +44,21 @@ function HomePage() {
     const coreKeysConfigured = !!(currentKeys.openai || currentKeys.openrouter);
     setKeysConfigured(coreKeysConfigured);
     setShowApiForm(!coreKeysConfigured); // Show form if no core keys are found
-
-    // Ensure keys are available globally on load (redundant if getApiKeys is used everywhere, but safe)
-    if (typeof window !== 'undefined') {
-       window.__PRECEK_API_KEYS = {
-         openai: currentKeys.openai,
-         openrouter: currentKeys.openrouter,
-         googleFactCheck: currentKeys.googleFactCheck, // Add Google key
-       };
-       // Also set individual properties if needed elsewhere (like multimediaProcessor fallback)
-       window.NEXT_PUBLIC_OPENAI_API_KEY = currentKeys.openai;
-       window.OPENROUTER_API_KEY = currentKeys.openrouter;
-       window.GOOGLE_FACT_CHECK_API_KEY = currentKeys.googleFactCheck; // Add Google key
-    }
   }, []); // Empty dependency array ensures this runs only once on mount
 
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]); // Correctly include loadInitialData in dependencies
 
-  // Generic processing handler
-  const handleProcess = async (processor, input, inputName = 'input') => {
-    if (!keysConfigured) {
-        setError("API keys are not configured. Please configure them first.");
-        setShowApiForm(true);
-        return;
-    }
+  // Generic processing handler - Modified to accept keys
+  const handleProcess = async (processor, input, inputName = 'input', currentApiKeys) => {
     setIsProcessing(true);
     setError('');
     setResult(''); // Clear previous result
 
     try {
-      const response = await processor(input, inputName); // Pass inputName for files
+      // Pass keys to the processor function
+      const response = await processor(input, inputName, currentApiKeys);
 
       // Check for errors returned by the processor service
       if (response && response.error) {
@@ -100,26 +83,51 @@ function HomePage() {
     }
   };
 
-  // Specific handlers calling the generic one
+  // Specific handlers calling the generic one - Modified to pass keys
   const handleProcessText = (text) => {
-    handleProcess(processText, text, `"${truncateText(text, 30)}"`);
+    const currentKeys = getApiKeys();
+    if (!currentKeys.openai && !currentKeys.openrouter) {
+        setError("API keys are not configured. Please configure them first.");
+        setShowApiForm(true);
+        return;
+    }
+    handleProcess(processText, text, `"${truncateText(text, 30)}"`, currentKeys);
   };
 
   const handleProcessImage = (file) => {
-    handleProcess(processImage, file, file.name);
+    const currentKeys = getApiKeys();
+     if (!currentKeys.openai && !currentKeys.openrouter) {
+        setError("API keys are not configured. Please configure them first.");
+        setShowApiForm(true);
+        return;
+    }
+    handleProcess(processImage, file, file.name, currentKeys);
   };
 
   const handleProcessAudio = (file) => {
-    handleProcess(processAudio, file, file.name);
+    const currentKeys = getApiKeys();
+     if (!currentKeys.openai && !currentKeys.openrouter) {
+        setError("API keys are not configured. Please configure them first.");
+        setShowApiForm(true);
+        return;
+    }
+    handleProcess(processAudio, file, file.name, currentKeys);
   };
 
   const handleProcessVideo = (file) => {
-    handleProcess(processVideo, file, file.name);
+    const currentKeys = getApiKeys();
+     if (!currentKeys.openai && !currentKeys.openrouter) {
+        setError("API keys are not configured. Please configure them first.");
+        setShowApiForm(true);
+        return;
+    }
+    handleProcess(processVideo, file, file.name, currentKeys);
   };
 
-  // Special handler for text files (potentially multiple)
+  // Special handler for text files (potentially multiple) - Modified to pass keys
   const handleProcessTextFile = async (files) => {
-     if (!keysConfigured) {
+     const currentKeys = getApiKeys(); // Get keys once
+     if (!currentKeys.openai && !currentKeys.openrouter) {
         setError("API keys are not configured. Please configure them first.");
         setShowApiForm(true);
         return;
@@ -152,8 +160,8 @@ function HomePage() {
              continue;
           }
 
-          // Process the extracted text
-          const response = await processText(text, file.name);
+          // Process the extracted text, passing keys
+          const response = await processText(text, file.name, currentKeys); // Pass keys here
           if (response && response.error) {
               throw new Error(response.processingResult || `Processing failed for ${file.name}`);
           }
@@ -331,5 +339,14 @@ function HomePage() {
     </Container>
   );
 }
+
+// Helper function (if not already present or imported)
+function truncateText(text, maxLength) {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength) + '...';
+}
+
 
 export default HomePage;
