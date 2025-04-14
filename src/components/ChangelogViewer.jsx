@@ -17,83 +17,19 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import ChangeCircleIcon from '@mui/icons-material/ChangeCircle';
 import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';
-import fs from 'fs';
-import path from 'path';
+import changelogData from '../data/changelog-data';
 
-// Get the raw changelog content
-// This will be evaluated at build-time by Next.js
-const parseChangelogMd = (content) => {
-  const versions = [];
-  let currentVersion = null;
-  let currentType = null;
-  
-  // Split content by lines
-  const lines = content.split('\n');
-  
-  for (const line of lines) {
-    // Match version lines: ## [1.2.0] - 2025-04-14
-    const versionMatch = line.match(/^## \[([^\]]+)\] - (.+)$/);
-    if (versionMatch) {
-      if (currentVersion) {
-        versions.push(currentVersion);
-      }
-      currentVersion = {
-        version: versionMatch[1],
-        date: versionMatch[2],
-        changes: {}
-      };
-      currentType = null;
-      continue;
-    }
-    
-    // Match change types: ### Added, ### Changed, etc.
-    const typeMatch = line.match(/^### (.+)$/);
-    if (typeMatch && currentVersion) {
-      currentType = typeMatch[1];
-      currentVersion.changes[currentType] = [];
-      continue;
-    }
-    
-    // Match change items (bullet points)
-    const itemMatch = line.match(/^- (.+)$/);
-    if (itemMatch && currentVersion && currentType) {
-      currentVersion.changes[currentType].push(itemMatch[1]);
-    }
-  }
-  
-  // Add the last version
-  if (currentVersion) {
-    versions.push(currentVersion);
-  }
-  
-  return versions;
-};
-
-// Read the changelog.md file at build time
-const getStaticChangelog = () => {
-  try {
-    // This code runs at build time, not in the browser
-    const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
-    const fileContent = fs.readFileSync(changelogPath, 'utf8');
-    return parseChangelogMd(fileContent);
-  } catch (error) {
-    console.error('Error reading changelog at build time:', error);
-    return [];
-  }
-};
-
-// Get the parsed changelog at build time
-const staticChangelog = getStaticChangelog();
+// We're now using pre-parsed changelog data from the imported file
+// instead of trying to read and parse the CHANGELOG.md file directly
 
 const ChangelogViewer = () => {
   const [changelog, setChangelog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   useEffect(() => {
-    // Use the statically parsed changelog data
+    // Use the imported changelog data
     try {
-      setChangelog(staticChangelog);
+      setChangelog(changelogData);
       setLoading(false);
     } catch (err) {
       console.error('Error loading changelog:', err);
