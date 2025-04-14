@@ -114,8 +114,7 @@ function HomePage() {
 
     setIsProcessing(true);
     setError('');
-    
-    try {
+      try {
       let text = '';
         if (file.name.toLowerCase().endsWith('.txt')) {
         // Handle plain text files
@@ -126,19 +125,8 @@ function HomePage() {
           throw new Error('PDF processing is only available in browser environment');
         }
         text = await readPdfFile(file);
-      } else if (file.name.toLowerCase().endsWith('.epub')) {
-        // For EPUB files, we need to extract meaningful text content
-        // Since EPUB is a zip archive, reading as text will produce binary data
-        // Instead, let's extract metadata and provide that for processing
-        const fileName = file.name;
-        const fileSize = (file.size / 1024).toFixed(2); // Size in KB
-        
-        // Create a more useful text representation instead of binary data
-        text = `EPUB file metadata:\nFilename: ${fileName}\nSize: ${fileSize} KB\n\n` +
-               `This is an EPUB document. Due to its format, only metadata can be processed. ` +
-               `Please extract the content using an EPUB reader before processing the full text.`;
       } else {
-        throw new Error('Unsupported file format. Please upload .txt, .pdf, or .epub files.');
+        throw new Error('Unsupported file format. Please upload .txt or .pdf files.');
       }
       
       if (!text || text.trim().length === 0) {
@@ -483,22 +471,30 @@ function HomePage() {
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   Text Input
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                </Typography>                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <TextField
                     id="text-input"
                     fullWidth
-                    size="small"
+                    multiline
+                    minRows={4}
+                    maxRows={12}
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="Enter text to process"
                     variant="outlined"
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        padding: '12px',
+                        fontFamily: 'inherit'
+                      }
+                    }}
                   />
                   <Button 
                     variant="contained" 
                     onClick={handleProcessText} 
                     disabled={isProcessing}
                     startIcon={<TextFieldsIcon />}
+                    sx={{ alignSelf: 'flex-end' }}
                   >
                     Process Text
                   </Button>
@@ -508,22 +504,21 @@ function HomePage() {
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   Or Upload Text Files
-                </Typography>
-                <Button
-                  variant="outlined"
-                  component="span"
-                  disabled={isProcessing}
-                  startIcon={<CloudUploadIcon />}
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = '.txt,.pdf,.epub';
-                    input.onchange = handleProcessTextFile;
-                    input.click();
-                  }}
-                >
-                  Upload Text File (.txt, .pdf, .epub)
-                </Button>
+                </Typography>                  <Button
+                    variant="outlined"
+                    component="span"
+                    disabled={isProcessing}
+                    startIcon={<CloudUploadIcon />}
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = '.txt,.pdf';
+                      input.onchange = handleProcessTextFile;
+                      input.click();
+                    }}
+                  >
+                    Upload Text File (.txt, .pdf)
+                  </Button>
               </Box>              <Divider sx={{ my: 1 }} />
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 <Button 

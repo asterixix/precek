@@ -305,9 +305,7 @@ const processImageWithGPT4Vision = async (apiKey, imageData, filename) => {
     };
     
     // Log API key format for debugging (without revealing the full key)
-    console.log(`API key format: ${apiKey.substring(0, 7)}...`);
-
-    // Select appropriate model and endpoint based on API key type
+    console.log(`API key format: ${apiKey.substring(0, 7)}...`);    // Select appropriate model and endpoint based on API key type
     if (isOpenRouter) {
       model = 'openai/gpt-4-vision-preview'; // OpenRouter format for Vision model
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
@@ -316,7 +314,7 @@ const processImageWithGPT4Vision = async (apiKey, imageData, filename) => {
     } else {
       // Using OpenAI directly
       model = 'gpt-4-vision-preview'; // Latest vision model
-      endpoint = 'https://api.openai.com/v1/chat/completions';
+      endpoint = 'https://api.openai.com/v1/chat/completions'; // Ensures correct path
       console.log('Using OpenAI directly for image processing');
     }    // Process the image data - make sure we have a proper format
     let base64Image = imageData;
@@ -528,8 +526,7 @@ const processAudioWithWhisper = async (apiKey, audioData, filename) => {
       console.log('Successfully transcribed audio');
 
       // Now analyze the transcription with GPT
-      console.log('Analyzing transcription content...');
-      const analysisResponse = await axios({
+      console.log('Analyzing transcription content...');      const analysisResponse = await axios({
         method: 'post',
         url: 'https://api.openai.com/v1/chat/completions',
         headers: {
@@ -545,7 +542,8 @@ const processAudioWithWhisper = async (apiKey, audioData, filename) => {
             }
           ],
           max_tokens: 500
-        }
+        },
+        timeout: 60000 // Adding 60 second timeout for reliability
       });
 
       // Combine transcription and analysis
