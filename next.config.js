@@ -6,6 +6,9 @@ const nextConfig = {
   // Configure assetPrefix if needed for CSS/JS files on GitHub Pages
   assetPrefix: process.env.NODE_ENV === 'production' ? '/precek/' : '',
 
+  // Add output export configuration
+  output: 'export',
+
   // Make environment variables available to the server-side build/runtime
   env: {
     NEXT_PUBLIC_OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
@@ -22,6 +25,7 @@ const nextConfig = {
 
   // If using `next export`, ensure trailingSlash is handled correctly if needed
   // trailingSlash: true, // Usually needed for static exports on GH Pages without custom domain
+  // Note: trailingSlash might still be needed with output: 'export' depending on server config
 
   // Add webpack config if needed for specific loaders or fallbacks
   webpack: (config, { isServer }) => {
