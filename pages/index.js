@@ -3,7 +3,8 @@ import Head from 'next/head';
 import Link from 'next/link';
 // Import readTextFile and readPdfFile along with getApiKeys
 import { getApiKeys, readTextFile, readPdfFile } from '/src/utils/helpers';
-import { getAllData, addData, clearAllData, exportDataToCSV } from '/src/services/database';
+// Import deleteData along with other database functions
+import { getAllData, addData, clearAllData, exportToCSV, deleteData } from '/src/services/database';
 import { processText, processImage, processAudio, processVideo } from '/src/services/multimediaProcessor';
 
 // Material UI Components
@@ -227,6 +228,29 @@ function HomePage() {
     }
   };
 
+  // Handle deleting a single item
+  const handleDeleteItem = async (id) => {
+    // Optional: Add a confirmation dialog
+    if (window.confirm(`Are you sure you want to delete item ID: ${id}?`)) {
+      setIsProcessing(true); // Indicate activity
+      setError('');
+      setResult('');
+      try {
+        await deleteData(id);
+        // Refresh the data list
+        const updatedData = await getAllData();
+        setProcessedData(updatedData || []);
+        setResult(`Item ID: ${id} deleted successfully.`);
+      } catch (err) {
+        console.error(`Error deleting item ID: ${id}`, err);
+        setError(`Failed to delete item ID: ${id}. ${err.message || ''}`);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+
   // Callback when keys are saved in the form
   const handleKeysSaved = () => {
     const keys = getApiKeys(); // Re-fetch keys
@@ -338,6 +362,7 @@ function HomePage() {
         processedData={processedData}
         onExportToCSV={handleExportToCSV}
         onClearData={handleClearData}
+        onDeleteItem={handleDeleteItem} // Pass the delete handler
         isProcessing={isProcessing} // Pass isProcessing if needed by the display component
       />
 

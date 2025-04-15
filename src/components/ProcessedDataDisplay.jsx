@@ -7,12 +7,16 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton'; // Import IconButton
+import DeleteIcon from '@mui/icons-material/Delete'; // Import DeleteIcon
+import Tooltip from '@mui/material/Tooltip'; // Import Tooltip
 import { truncateText, getTypeColorMui } from '/src/utils/helpers'; // Import helpers
 
 const ProcessedDataDisplay = ({
   processedData,
   onExportToCSV,
   onClearData,
+  onDeleteItem, // Add new prop
   isProcessing,
 }) => {
   if (!processedData || processedData.length === 0) {
@@ -55,7 +59,30 @@ const ProcessedDataDisplay = ({
           {/* Display only the first few items (e.g., 6) */}
           {processedData.slice(0, 6).map((item) => (
             <Grid item xs={12} sm={6} md={4} key={item.id}> {/* Use item.id as key */}
-              <Card sx={{ overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{ overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}> {/* Add position relative */}
+                 {/* Delete Button */}
+                 {onDeleteItem && ( // Only show if handler is provided
+                    <Tooltip title="Delete this item">
+                      <IconButton
+                        aria-label="delete item"
+                        onClick={() => onDeleteItem(item.id)}
+                        size="small"
+                        sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          zIndex: 1, // Ensure it's above other content
+                          backgroundColor: 'rgba(255, 255, 255, 0.7)', // Semi-transparent background
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          },
+                        }}
+                        disabled={isProcessing} // Disable while processing
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                  {/* Media Preview */}
                  {item.type === 'image' && item.data && (
                     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 100, overflow: 'hidden', mb: 1, border: theme => `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>

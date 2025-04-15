@@ -21,7 +21,7 @@ const PhrasesLinkTab = ({ phraseLinkData, isLoading }) => {
     <Card elevation={2}>
       <CardHeader
         title={<Typography variant="h6">Phrase Connections</Typography>}
-        subheader={<Typography variant="body2" color="text.secondary">Visualizing relationships between common phrases</Typography>}
+        subheader={<Typography variant="body2" color="text.secondary">Visualizing phrases that frequently appear close to each other in the text. Node size indicates phrase frequency.</Typography>}
       />
       <CardContent>
         {isLoading ? (

@@ -118,23 +118,45 @@ const useTextAnalysis = (data) => {
       id: item.id || index.toString(), // Use item ID if available
       name: item.originalName || `Text ${index + 1}`,
       val: 1 + (item.processingResult || item.content || '').length / 1000, // Size based on length
+      // Store cleaned words for comparison
+      words: new Set(
+        (item.processingResult || item.content || '')
+          .toLowerCase()
+          .split(/\s+/)
+          .map(cleanWord)
+          .filter(word => word.length > 2 && !stopWords.has(word))
+      )
     }));
 
-    // Basic similarity linking (example - replace with actual logic)
+    // --- Link Generation Logic ---
     const links = [];
-    // Placeholder: In a real app, implement TF-IDF, cosine similarity, etc.
-    // For now, keep the random links for visual demonstration if needed, or omit.
-    /*
+    const minSharedWords = 3; // Minimum shared words to create a link (adjustable)
+
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
-        if (Math.random() > 0.8) { // Reduced frequency
-          links.push({ source: nodes[i].id, target: nodes[j].id, value: Math.random() });
+        const node1 = nodes[i];
+        const node2 = nodes[j];
+
+        // Find intersection of word sets
+        const intersection = new Set([...node1.words].filter(word => node2.words.has(word)));
+        const sharedWordCount = intersection.size;
+
+        if (sharedWordCount >= minSharedWords) {
+          links.push({
+            source: node1.id,
+            target: node2.id,
+            value: sharedWordCount // Link strength based on shared word count
+          });
         }
       }
     }
-    */
-    return { nodes, links }; // Return the result
-  }, []); // Dependencies are stable
+    // --- End Link Generation Logic ---
+
+    // Clean up nodes data before returning (remove temporary 'words' set)
+    const finalNodes = nodes.map(({ words, ...rest }) => rest);
+
+    return { nodes: finalNodes, links }; // Return nodes without the 'words' set and the generated links
+  }, [stopWords]); // Add stopWords dependency
 
   const calculateConcordance = useCallback((textToSearch, term) => {
     if (!term || term.trim() === '' || !textToSearch) {
@@ -326,20 +348,34 @@ const useTextAnalysis = (data) => {
         name: phrase,
         val: count // Size node by frequency
     }));
-    // Basic linking: link phrases that share a word (very simplified, needs refinement for real analysis)
+
+    // --- Link Generation Logic ---
     const phraseLinks = [];
-    // This linking logic is placeholder - real co-occurrence analysis is more complex
-    /*
+    // Link phrases that share at least one word (simple co-occurrence proxy)
+    // Note: This is a basic approach. More sophisticated methods could analyze proximity in the text.
+    const nodeMap = new Map(phraseNodes.map(node => [node.id, node])); // For quick lookup
+
     for (let i = 0; i < phraseNodes.length; i++) {
-        const words1 = phraseNodes[i].id.split(' ');
+        const node1 = phraseNodes[i];
+        const words1 = new Set(node1.id.split(' ')); // Use Set for efficient lookup
+
         for (let j = i + 1; j < phraseNodes.length; j++) {
-            const words2 = phraseNodes[j].id.split(' ');
-            if (words1.some(w => words2.includes(w))) {
-                 phraseLinks.push({ source: phraseNodes[i].id, target: phraseNodes[j].id, value: 1 });
+            const node2 = phraseNodes[j];
+            const words2 = node2.id.split(' ');
+
+            // Check if any word from phrase 2 exists in phrase 1
+            if (words2.some(w => words1.has(w))) {
+                 // Add link, value could represent combined frequency or a fixed value
+                 phraseLinks.push({
+                     source: node1.id,
+                     target: node2.id,
+                     // Optional: Add value based on node frequencies for potential link styling
+                     value: (node1.val + node2.val) / 2 // Example: average frequency
+                 });
             }
         }
     }
-    */
+    // --- End Link Generation Logic ---
 
 
     return {
@@ -349,7 +385,7 @@ const useTextAnalysis = (data) => {
       vocabularyDensity,
       readabilityIndex, // This now holds the ARI score
       avgWordsPerSentence,
-      phraseGraphData: { nodes: phraseNodes, links: phraseLinks } // Include graph data
+      phraseGraphData: { nodes: phraseNodes, links: phraseLinks } // Include graph data with generated links
     };
   }, [stopWords]); // Dependencies are stable
 

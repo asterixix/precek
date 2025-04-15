@@ -6,67 +6,32 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { v4 as uuidv4 } from 'uuid'; // For unique filenames
 
 // --- Text Processing ---
-// Uses OpenRouter with meta-llama/llama-4-maverick:free
+// Stores raw text directly into the database without AI processing.
 export const processText = async (text, sourceName = 'text input', apiKeys) => {
-  console.log(`Processing text from: ${sourceName} using OpenRouter Llama 4 Maverick`);
-  const apiKey = apiKeys?.openrouter; // Use OpenRouter key directly
-
-  if (!apiKey) {
-    console.error("Error processing text: OpenRouter API key is required.");
-    return { error: true, processingResult: 'OpenRouter API key is required for text processing.' };
-  }
+  console.log(`Storing text from: ${sourceName}`);
+  // No API key needed as we are not processing with AI anymore.
 
   try {
-    const apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
-    const headers = {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      // OpenRouter specific headers (Optional but recommended)
-      // 'HTTP-Referer': $YOUR_SITE_URL, // Replace with your site URL
-      // 'X-Title': $YOUR_SITE_NAME, // Replace with your site name
-    };
+    // Directly use the input text as the "result" to be stored.
+    const processingResult = text;
 
-    const body = JSON.stringify({
-      model: "meta-llama/llama-4-maverick:free", // Specific model
-      messages: [
-        { role: "system", content: "Analyze the following text for key themes, sentiment, and potential misinformation. Provide a concise summary." },
-        { role: "user", content: text }
-      ],
-    });
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: headers,
-      body: body,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error(`OpenRouter API Error (${response.status}):`, errorData);
-      if (response.status === 401) {
-        throw new Error('OpenRouter API key is invalid or unauthorized (401)');
-      }
-      throw new Error(`OpenRouter API request failed with status ${response.status}: ${errorData.error?.message || response.statusText}`);
-    }
-
-    const data = await response.json();
-    const processingResult = data.choices[0]?.message?.content || 'No result from API';
-
-    // Add processed data to Dexie
+    // Add raw data to Dexie
     await addData({
       type: 'text',
       source: sourceName,
-      content: text,
-      processingResult: processingResult,
+      content: text, // Store original text in content
+      processingResult: processingResult, // Store original text here as well for consistency, or adjust DB schema later
       timestamp: new Date().toISOString(),
     });
 
-    console.log(`Text processed successfully: ${sourceName}`);
-    return { success: true, processingResult };
+    console.log(`Text stored successfully: ${sourceName}`);
+    // Return success and the original text
+    return { success: true, processingResult: processingResult };
 
   } catch (error) {
-    console.error(`Error processing text from ${sourceName}:`, error);
-    return { error: true, processingResult: `Error: ${error.message || 'Unable to process text.'}` };
+    console.error(`Error storing text from ${sourceName}:`, error);
+    // Return error and a relevant message
+    return { error: true, processingResult: `Error: ${error.message || 'Unable to store text.'}` };
   }
 };
 

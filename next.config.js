@@ -36,6 +36,7 @@ const nextConfig = {
       config.resolve.fallback = {
         ...config.resolve.fallback, // Spread existing fallbacks
         fs: false, // Tell webpack to ignore fs module on client-side
+        'webworker-threads': false, // Tell webpack to ignore webworker-threads on client-side
       };
     }
     return config;
