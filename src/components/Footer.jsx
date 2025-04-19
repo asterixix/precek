@@ -58,13 +58,13 @@ const Footer = () => {
             <Typography variant="body2" color="text.secondary" align="center" sx={{ display: 'flex', alignItems: 'center' }}>
               Built with <FavoriteIcon sx={{ color: 'error.main', mx: 0.5, fontSize: '1rem' }} /> by{' '}
               <Link
-                href="https://sendyka.dev"
+                href="https://github.com/asterixix/precek"
                 target="_blank"
                 rel="noopener noreferrer"
                 color="inherit" // Inherit color for better theme adaptation
                 sx={{ ml: 0.5, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
               >
-                Artur Sendyka
+                Github Community
               </Link>
             </Typography>
           </Box>
