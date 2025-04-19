@@ -71,19 +71,3 @@ Access the application at `http://localhost:3000`
 npm run build
 npm run web
 ```
-
-## Contributing
-
-Contributions are welcome! Feel free to contribute, debug issues, and submit pull requests.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please focus on the known issues listed above if you want to make an immediate impact.
-
-## License
-
-This project is licensed under the MIT License.
