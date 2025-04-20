@@ -33,50 +33,131 @@ const TtrAnalysisTab = ({ ttrData, isLoading }) => {
   return (
     <Card elevation={2}>
       <CardHeader
-        title={<Typography variant="h6">Type-Token Ratio (TTR) Analysis</Typography>}
-        subheader={<Typography variant="body2" color="text.secondary">Measure of lexical diversity in the text</Typography>}
+        title={
+          <Typography variant="h6">Type-Token Ratio (TTR) Analysis</Typography>
+        }
+        subheader={
+          <Typography variant="body2" color="text.secondary">
+            Measure of lexical diversity in the text
+          </Typography>
+        }
       />
       <CardContent>
         {isLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-             <CircularProgress />
-             <Typography sx={{ ml: 2 }}>Loading TTR data...</Typography>
+          <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+            <CircularProgress />
+            <Typography sx={{ ml: 2 }}>Loading TTR data...</Typography>
           </Box>
         ) : totalWords === 0 ? (
-           <Typography variant="body2" color="text.secondary">Not enough text data (minimum words required) to calculate TTR.</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Not enough text data (minimum words required) to calculate TTR.
+          </Typography>
         ) : (
           <Box>
-            <Grid container spacing={3} justifyContent="center" alignItems="stretch"> {/* Use alignItems stretch */}
+            <Grid
+              container
+              spacing={3}
+              justifyContent="center"
+              alignItems="stretch"
+            >
+              {" "}
+              {/* Use alignItems stretch */}
               <Grid item xs={12} sm={4}>
-                <Paper elevation={0} sx={{ ...paperStyle, backgroundColor: theme.palette.grey[100] }}> {/* Light grey background */}
-                  <Typography variant="overline" color="text.secondary" gutterBottom>Total Words</Typography>
-                  <Typography variant="h4" component="div">{totalWords}</Typography>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    ...paperStyle,
+                    backgroundColor: theme.palette.primary.main,
+                    color: theme.palette.primary.contrastText,
+                  }}
+                >
+                  {" "}
+                  {/* Light grey background */}
+                  <Typography
+                    variant="overline"
+                    color="text.secondary"
+                    gutterBottom
+                  >
+                    Total Words
+                  </Typography>
+                  <Typography variant="h4" component="div">
+                    {totalWords}
+                  </Typography>
                 </Paper>
               </Grid>
               <Grid item xs={12} sm={4}>
-                <Paper elevation={0} sx={{ ...paperStyle, backgroundColor: theme.palette.grey[100] }}> {/* Light grey background */}
-                  <Typography variant="overline" color="text.secondary" gutterBottom>Unique Words</Typography>
-                  <Typography variant="h4" component="div">{uniqueWords}</Typography>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    ...paperStyle,
+                    backgroundColor: theme.palette.primary.main,
+                    color: theme.palette.primary.contrastText,
+                  }}
+                >
+                  {" "}
+                  {/* Light grey background */}
+                  <Typography
+                    variant="overline"
+                    color="text.secondary"
+                    gutterBottom
+                  >
+                    Unique Words
+                  </Typography>
+                  <Typography variant="h4" component="div">
+                    {uniqueWords}
+                  </Typography>
                 </Paper>
               </Grid>
               <Grid item xs={12} sm={4}>
                 {/* Emphasize TTR */}
-                <Paper elevation={1} sx={{ ...paperStyle, backgroundColor: theme.palette.primary.main, color: theme.palette.primary.contrastText }}>
-                   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
-                     <Typography variant="overline" gutterBottom sx={{ mb: 0, mr: 0.5 }}>
-                       TTR Score
-                     </Typography>
-                     <Tooltip title="Type-Token Ratio (Unique Words / Total Words). Higher values (closer to 1) indicate greater lexical diversity." placement="top">
-                       <InfoOutlinedIcon fontSize="small" sx={{ color: theme.palette.primary.contrastText }} />
-                     </Tooltip>
-                   </Box>
-                  <Typography variant="h4" component="div">{formattedTTR}</Typography>
+                <Paper
+                  elevation={1}
+                  sx={{
+                    ...paperStyle,
+                    backgroundColor: theme.palette.primary.main,
+                    color: theme.palette.primary.contrastText,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      mb: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="overline"
+                      gutterBottom
+                      sx={{ mb: 0, mr: 0.5 }}
+                    >
+                      TTR Score
+                    </Typography>
+                    <Tooltip
+                      title="Type-Token Ratio (Unique Words / Total Words). Higher values (closer to 1) indicate greater lexical diversity."
+                      placement="top"
+                    >
+                      <InfoOutlinedIcon
+                        fontSize="small"
+                        sx={{ color: theme.palette.primary.contrastText }}
+                      />
+                    </Tooltip>
+                  </Box>
+                  <Typography variant="h4" component="div">
+                    {formattedTTR}
+                  </Typography>
                   <Typography variant="caption">(Unique / Total)</Typography>
                 </Paper>
               </Grid>
             </Grid>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 3, textAlign: 'center' }}>
-                TTR measures the variety of vocabulary used. A higher TTR indicates greater lexical diversity. Values typically range from 0 to 1, though the meaningful range depends heavily on text length.
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 3, textAlign: "center" }}
+            >
+              TTR measures the variety of vocabulary used. A higher TTR
+              indicates greater lexical diversity. Values typically range from 0
+              to 1, though the meaningful range depends heavily on text length.
             </Typography>
           </Box>
         )}
