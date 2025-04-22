@@ -167,11 +167,62 @@ export default function ContributingPage({ content }) {
               '&:hover': { textDecoration: 'underline' }
             },
             '& img': { maxWidth: '100%' },
+            '& h1': { mt: 4, mb: 2 },
+            '& h2': { mt: 3, mb: 2 },
+            '& h3': { mt: 2, mb: 1 },
+            '& code': {
+              backgroundColor: 'background.paper',
+              padding: '2px 4px',
+              borderRadius: '3px',
+              fontFamily: 'monospace'
+            },
+            '& pre': {
+              backgroundColor: 'background.paper',
+              padding: 2,
+              borderRadius: '4px',
+              overflow: 'auto',
+              '& code': {
+                background: 'none',
+                padding: 0
+              }
+            }
+          }}
+          dangerouslySetInnerHTML={{ __html: content }} 
+        />
+      </Paper>
+      
+      {/* Contributors Section */}
+      <Paper elevation={1} sx={{ p: 4, mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+          <GitHubIcon sx={{ mr: 1 }} /> Project Contributors
+        </Typography>
+        
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          These amazing people have contributed to the Precek project on GitHub.
+        </Typography>
+        
+        {renderContributorsSection()}
+      </Paper>
+      
+      {/* Navigation buttons */}
+      <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
+        <Link href="/" passHref style={{ textDecoration: 'none' }}>
+          <Button variant="outlined" startIcon={<HomeIcon />}>
+            Return to Home
+          </Button>
+        </Link>
+        <Link href="/about" passHref style={{ textDecoration: 'none' }}>
+          <Button variant="outlined">
+            About Precek
+          </Button>
+        </Link>
+      </Box>
+    </Container>
   );
 }
 
 export async function getStaticProps() {
-  // Read CONTRIBUTING.md
+  // Only read CONTRIBUTING.md at build time
   const filePath = path.join(process.cwd(), 'CONTRIBUTING.md');
   let content = '';
   
@@ -183,24 +234,9 @@ export async function getStaticProps() {
     content = markdownToHtml('# Error\nUnable to load content. Please check that CONTRIBUTING.md exists.');
   }
   
-  // Fetch contributors data from GitHub API
-  let contributors = [];
-  try {
-    const response = await fetch('https://api.github.com/repos/asterixix/precek/contributors');
-    if (response.ok) {
-      contributors = await response.json();
-    } else {
-      console.error('Failed to fetch contributors:', response.statusText);
-    }
-  } catch (error) {
-    console.error('Error fetching contributors:', error);
-  }
-  
   return {
     props: {
-      content,
-      contributors
+      content
     }
-    // Remove the revalidate property as it's not compatible with static export
   };
 }
