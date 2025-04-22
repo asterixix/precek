@@ -366,6 +366,31 @@ function HomePage() {
         isProcessing={isProcessing} // Pass isProcessing if needed by the display component
       />
 
+      {/* Footer Links */}
+      <Box 
+        component="footer" 
+        sx={{ 
+          mt: 6, 
+          pt: 3, 
+          borderTop: 1, 
+          borderColor: 'divider',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 4
+        }}
+      >
+        <Link href="/about" passHref style={{ textDecoration: 'none' }}>
+          <Button variant="text" color="primary">
+            About
+          </Button>
+        </Link>
+        <Link href="/contributing" passHref style={{ textDecoration: 'none' }}>
+          <Button variant="text" color="primary">
+            Contributing
+          </Button>
+        </Link>
+      </Box>
+
     </Container>
   );
 }
