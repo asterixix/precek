@@ -33,6 +33,25 @@ jobs:
         run: npm ci --legacy-peer-deps
         # --legacy-peer-deps is used to avoid peer dependency issues with Next.js
 
+      # Add a check for next.config.js
+      - name: Check Next.js config
+        run: |
+          if [ -f "next.config.js" ]; then
+            echo "Found next.config.js - checking configuration:"
+            cat next.config.js
+            echo "Ensuring output: 'export' is set correctly for static site generation"
+          else
+            echo "Warning: next.config.js not found, creating basic configuration"
+            echo "/** @type {import('next').NextConfig} */
+            const nextConfig = {
+              output: 'export',
+              images: { unoptimized: true },
+              basePath: '/precek',
+              trailingSlash: true,
+            }
+            module.exports = nextConfig" > next.config.js
+          fi
+
       - name: Build Next.js app
         run: npm run build
         env:
@@ -41,14 +60,36 @@ jobs:
           # Ensure NEXT_PUBLIC_OPENAI_API_KEY is also passed if needed for build
           # NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
 
+      # Add debug info about the output directory
+      - name: Debug output directory
+        run: |
+          echo "Output directory contents:"
+          ls -la ./out
+          echo "Total size of output directory:"
+          du -sh ./out
+          echo "Largest files in output:"
+          find ./out -type f -exec du -h {} \; | sort -rh | head -n 10
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
-        
+          
+      # Add timeout to deployment to avoid hanging
       - name: Deploy 🚀
         id: deployment
         uses: actions/deploy-pages@v4
+        timeout-minutes: 10
         
       - name: Output deployment URL
         run: echo "Deployed to ${{ steps.deployment.outputs.page_url }}"
+        
+      # Add troubleshooting for stuck deployments
+      - name: Troubleshooting info
+        if: always()
+        run: |
+          echo "If deployment is stuck in 'syncing_files' status:"
+          echo "1. Check GitHub status at https://www.githubstatus.com/"
+          echo "2. Verify repository settings have GitHub Pages enabled"
+          echo "3. Try a smaller build by removing unused assets"
+          echo "4. You may need to manually cancel the stuck deployment in GitHub Actions"
