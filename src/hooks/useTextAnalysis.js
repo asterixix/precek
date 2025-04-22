@@ -67,7 +67,7 @@ const useTextAnalysis = (data) => {
   }, [stopWords]); // Dependency is stable
 
   const calculateSentimentAnalysis = useCallback((textData) => {
-    const sentimentAnalyzer = new Sentiment();
+    const sentimentAnalyzer = new Sentiment(); // Default lexicon
     const sentiments = textData.map(item => {
       const text = item.processingResult || item.content || '';
       const date = item.timestamp ? new Date(item.timestamp) : new Date();
@@ -75,18 +75,23 @@ const useTextAnalysis = (data) => {
       const { score, comparative, words, positive, negative } = result;
 
       return {
-        id: item.id, // Include ID for potential linking
+        id: item.id,
         date: date.toISOString().split('T')[0],
         sentiment: score,
         comparative: comparative,
         positiveWords: positive,
         negativeWords: negative,
-        title: truncateText(text, 50), // Use helper
-        emotionWords: words,
+        title: truncateText(text, 50),
         textLength: text.length,
+        lexicons: {
+          standard: { score, comparative },
+          afinn: result.afinn || { score: 0, comparative: 0 },
+          nlpjs: result.nlpjs || { score: 0, comparative: 0 }
+        }
       };
     });
 
+    // Calculate overall metrics
     const totalSentiment = sentiments.reduce((acc, item) => acc + item.sentiment, 0);
     const avgSentiment = sentiments.length > 0 ? totalSentiment / sentiments.length : 0;
 
@@ -96,22 +101,23 @@ const useTextAnalysis = (data) => {
     const positiveCounts = countItems(allPositiveWords);
     const negativeCounts = countItems(allNegativeWords);
 
-    const topPositive = sortEntries(positiveCounts).slice(0, 10);
-    const topNegative = sortEntries(negativeCounts).slice(0, 10);
-
-    const processedSentiment = {
+    return {
       items: sentiments,
       overall: {
         average: avgSentiment,
         total: totalSentiment,
-        topPositive,
-        topNegative,
+        topPositive: sortEntries(positiveCounts).slice(0, 10),
+        topNegative: sortEntries(negativeCounts).slice(0, 10),
         positiveCount: allPositiveWords.length,
-        negativeCount: allNegativeWords.length
+        negativeCount: allNegativeWords.length,
+        lexiconAverages: {
+          standard: avgSentiment,
+          afinn: avgSentiment, // Will be updated when AFINN is implemented
+          nlpjs: avgSentiment  // Will be updated when NLP.js is implemented
+        }
       }
     };
-    return processedSentiment; // Return the result
-  }, []); // Dependencies are stable (assuming helpers are pure)
+  }, []); // Remove custom lexicon dependencies
 
   const calculateRelationships = useCallback((textData) => {
     const nodes = textData.map((item, index) => ({

@@ -1,7 +1,7 @@
 import React from 'react';
 import Typography from '@mui/material/Typography';
 
-const SentimentChart = ({ data }) => {
+const SentimentChart = ({ data, mode = 'time', syuzhetData = [] }) => {
   // Calculate chart dimensions
   const width = 300; // Smaller default width for embedding
   const height = 80; // Keep height as requested
@@ -36,33 +36,128 @@ const SentimentChart = ({ data }) => {
   const yDomainMax = absMax === 0 ? 1 : absMax; // Avoid division by zero, default to 1 if all are 0
   const yDomainMin = -yDomainMax;
 
-
-  // Calculate scales
-  const dates = averageSentiment.map(d => new Date(d.date));
-  let minDate = new Date(Math.min(...dates));
-  let maxDate = new Date(Math.max(...dates));
-
-  // Add padding if only one date point
-  if (dates.length === 1) {
-    minDate = new Date(minDate.setDate(minDate.getDate() - 1));
-    maxDate = new Date(maxDate.setDate(maxDate.getDate() + 1));
-  }
-  const dateRange = maxDate - minDate || 1; // Avoid division by zero
-
-  // Generate points for the line
-  const points = averageSentiment.map(d => {
-    const x = padding.left + chartWidth * ((new Date(d.date) - minDate) / dateRange);
-    // Scale y from yDomainMin to yDomainMax -> 0 to chartHeight
-    const y = padding.top + chartHeight - chartHeight * ((d.sentiment - yDomainMin) / (yDomainMax - yDomainMin));
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(' ');
-
   // Calculate Y position of the zero line
   const zeroLineY = padding.top + chartHeight - chartHeight * ((0 - yDomainMin) / (yDomainMax - yDomainMin));
 
+  // Choose visualization mode: time or narrative arc
+  const useNarrativeMode = mode === 'narrative';
+  
+  // Calculate scales for x-axis
+  let dataPoints = [];
+  let minX, maxX, xRange;
+  
+  if (useNarrativeMode) {
+    // For narrative mode, use equal spacing for points to show emotional arc
+    dataPoints = sentiments.map((s, i) => ({
+      x: i,
+      sentiment: s,
+      isKeyPoint: i === 0 || i === sentiments.length - 1 || 
+                 (i > 0 && i < sentiments.length - 1 && 
+                  ((s > 0 && sentiments[i-1] < 0) || 
+                   (s < 0 && sentiments[i-1] > 0) ||
+                   Math.abs(s) > yDomainMax * 0.7))
+    }));
+    minX = 0;
+    maxX = dataPoints.length - 1 || 1;
+    xRange = maxX - minX || 1;
+  } else {
+    // Time-based visualization
+    const dates = averageSentiment.map(d => new Date(d.date));
+    minX = new Date(Math.min(...dates));
+    maxX = new Date(Math.max(...dates));
+    
+    // Add padding if only one date point
+    if (dates.length === 1) {
+      minX = new Date(minX.setDate(minX.getDate() - 1));
+      maxX = new Date(maxX.setDate(maxX.getDate() + 1));
+    }
+    xRange = maxX - minX || 1; // Avoid division by zero
+    
+    // Find key points (significant changes, peaks, or zero-crossings)
+    dataPoints = averageSentiment.map((d, i, arr) => {
+      const sentiment = d.sentiment;
+      const isKeyPoint = 
+        i === 0 || i === arr.length - 1 || // First and last points
+        (i > 0 && 
+          ((sentiment > 0 && arr[i-1].sentiment < 0) || // Zero crossings
+           (sentiment < 0 && arr[i-1].sentiment > 0) ||
+           Math.abs(sentiment) > yDomainMax * 0.7)); // Peaks and valleys
+           
+      return {
+        x: new Date(d.date),
+        sentiment,
+        isKeyPoint
+      };
+    });
+  }
+  
+  // Generate points for the lines and areas
+  let points = '';
+  let positiveAreaPoints = '';
+  let negativeAreaPoints = '';
+  
+  dataPoints.forEach((point, i) => {
+    // Calculate x position
+    let x;
+    if (useNarrativeMode) {
+      x = padding.left + chartWidth * (point.x / xRange);
+    } else {
+      x = padding.left + chartWidth * ((point.x - minX) / xRange);
+    }
+    
+    // Calculate y position
+    const y = padding.top + chartHeight - chartHeight * ((point.sentiment - yDomainMin) / (yDomainMax - yDomainMin || 1));
+    
+    // Add to the main line
+    points += `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)} `;
+    
+    // Add to appropriate area path
+    if (point.sentiment >= 0) {
+      positiveAreaPoints += `${positiveAreaPoints === '' ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)} `;
+    } else {
+      negativeAreaPoints += `${negativeAreaPoints === '' ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)} `;
+    }
+  });
+  
+  // Complete area paths by closing to zero line
+  if (positiveAreaPoints) {
+    const firstX = padding.left + chartWidth * ((useNarrativeMode ? dataPoints[0].x : dataPoints[0].x - minX) / xRange);
+    const lastX = padding.left + chartWidth * ((useNarrativeMode ? dataPoints[dataPoints.length-1].x : dataPoints[dataPoints.length-1].x - minX) / xRange);
+    positiveAreaPoints += `L${lastX.toFixed(2)},${zeroLineY.toFixed(2)} L${firstX.toFixed(2)},${zeroLineY.toFixed(2)} Z`;
+  }
+  
+  if (negativeAreaPoints) {
+    // Find first and last negative points to properly close the area
+    const firstNegativeIndex = dataPoints.findIndex(p => p.sentiment < 0);
+    const lastNegativeIndex = dataPoints.length - 1 - [...dataPoints].reverse().findIndex(p => p.sentiment < 0);
+    
+    if (firstNegativeIndex !== -1 && lastNegativeIndex !== -1) {
+      const firstX = padding.left + chartWidth * ((useNarrativeMode ? dataPoints[firstNegativeIndex].x : dataPoints[firstNegativeIndex].x - minX) / xRange);
+      const lastX = padding.left + chartWidth * ((useNarrativeMode ? dataPoints[lastNegativeIndex].x : dataPoints[lastNegativeIndex].x - minX) / xRange);
+      negativeAreaPoints += `L${lastX.toFixed(2)},${zeroLineY.toFixed(2)} L${firstX.toFixed(2)},${zeroLineY.toFixed(2)} Z`;
+    }
+  }
 
   return (
     <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+      {/* Background grid lines */}
+      <line
+        x1={padding.left}
+        y1={padding.top + chartHeight/4}
+        x2={width - padding.right}
+        y2={padding.top + chartHeight/4}
+        stroke="rgba(0,0,0,0.05)"
+        strokeWidth="0.5"
+      />
+      <line
+        x1={padding.left}
+        y1={padding.top + chartHeight*3/4}
+        x2={width - padding.right}
+        y2={padding.top + chartHeight*3/4}
+        stroke="rgba(0,0,0,0.05)"
+        strokeWidth="0.5"
+      />
+      
       {/* Zero line (neutral sentiment) */}
       <line
         x1={padding.left}
@@ -94,88 +189,126 @@ const SentimentChart = ({ data }) => {
         strokeWidth="0.5"
       />
 
-       {/* Date labels (simplified: start and end) */}
-       {averageSentiment.length > 0 && (
-         <>
-           <text
-             x={padding.left}
-             y={height - padding.bottom + 10} // Position below axis
-             textAnchor="start"
-             fontSize="8"
-             fill="rgba(0,0,0,0.6)"
-           >
-             {new Date(minDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-           </text>
-           <text
-             x={width - padding.right}
-             y={height - padding.bottom + 10} // Position below axis
-             textAnchor="end"
-             fontSize="8"
-             fill="rgba(0,0,0,0.6)"
-           >
-             {new Date(maxDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-           </text>
-         </>
-       )}
-
-      {/* Sentiment labels (Max, 0, Min) */}
-      {[yDomainMax, 0, yDomainMin].map((sentiment, i) => {
-         // Avoid drawing label if domain is effectively zero
-         if (yDomainMax === 0 && sentiment !== 0) return null;
-         // Calculate Y position for the label
-         const y = padding.top + chartHeight - chartHeight * ((sentiment - yDomainMin) / (yDomainMax - yDomainMin || 1));
-         // Prevent labels overlapping if min/max are too close to 0
-         if (i !== 1 && Math.abs(y - zeroLineY) < 5) return null;
-
-         return (
-           <text
-             key={i}
-             x={padding.left - 4} // Position left of axis
-             y={y + 3} // Adjust vertical alignment
-             textAnchor="end"
-             fontSize="8"
-             fill="rgba(0,0,0,0.6)"
-           >
-             {sentiment.toFixed(1)}
-           </text>
-         );
-       })}
-
-
-      {/* Fill area (optional, can be complex for small charts) */}
-      {/*
-      <path
-        d={`M${padding.left},${zeroLineY} L${points} L${width - padding.right},${zeroLineY}`}
-        fill="rgba(25, 118, 210, 0.1)"
-      />
-      */}
-
-      {/* Line chart */}
-      {points && (
-        <polyline
-          points={points}
-          fill="none"
-          stroke="#1976d2" // Material UI primary blue
-          strokeWidth="1.5"
+      {/* Area fills for positive and negative sentiment */}
+      {positiveAreaPoints && (
+        <path
+          d={positiveAreaPoints}
+          fill="rgba(76, 175, 80, 0.15)" // Light green with transparency
+          stroke="none"
+        />
+      )}
+      
+      {negativeAreaPoints && (
+        <path
+          d={negativeAreaPoints}
+          fill="rgba(244, 67, 54, 0.15)" // Light red with transparency
+          stroke="none"
         />
       )}
 
-      {/* Data points (optional for small charts) */}
-      {/*
-      {averageSentiment.map((d, i) => {
-         const x = padding.left + chartWidth * ((new Date(d.date) - minDate) / dateRange);
-         const y = padding.top + chartHeight - chartHeight * ((d.sentiment - yDomainMin) / (yDomainMax - yDomainMin));
+      {/* Labels for x-axis */}
+      {!useNarrativeMode && averageSentiment.length > 0 ? (
+        <>
+          <text
+            x={padding.left}
+            y={height - padding.bottom + 10}
+            textAnchor="start"
+            fontSize="8"
+            fill="rgba(0,0,0,0.6)"
+          >
+            {new Date(minX).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </text>
+          <text
+            x={width - padding.right}
+            y={height - padding.bottom + 10}
+            textAnchor="end"
+            fontSize="8"
+            fill="rgba(0,0,0,0.6)"
+          >
+            {new Date(maxX).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </text>
+        </>
+      ) : useNarrativeMode && (
+        <>
+          <text
+            x={padding.left}
+            y={height - padding.bottom + 10}
+            textAnchor="start"
+            fontSize="8"
+            fill="rgba(0,0,0,0.6)"
+          >
+            Start
+          </text>
+          <text
+            x={width - padding.right}
+            y={height - padding.bottom + 10}
+            textAnchor="end"
+            fontSize="8"
+            fill="rgba(0,0,0,0.6)"
+          >
+            End
+          </text>
+        </>
+      )}
+
+      {/* Sentiment labels (Max, 0, Min) */}
+      {[yDomainMax, 0, yDomainMin].map((sentiment, i) => {
+        if (yDomainMax === 0 && sentiment !== 0) return null;
+        const y = padding.top + chartHeight - chartHeight * ((sentiment - yDomainMin) / (yDomainMax - yDomainMin || 1));
+        if (i !== 1 && Math.abs(y - zeroLineY) < 5) return null;
+
+        return (
+          <text
+            key={i}
+            x={padding.left - 4}
+            y={y + 3}
+            textAnchor="end"
+            fontSize="8"
+            fill={sentiment > 0 ? "rgba(76, 175, 80, 0.8)" : 
+                  sentiment < 0 ? "rgba(244, 67, 54, 0.8)" : 
+                  "rgba(0,0,0,0.6)"}
+          >
+            {sentiment.toFixed(1)}
+          </text>
+        );
+      })}
+
+      {/* Main line chart */}
+      <path
+        d={points}
+        fill="none"
+        stroke="#1976d2"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+
+      {/* Data points for key moments */}
+      {dataPoints.map((point, i) => {
+        if (!point.isKeyPoint && i % Math.max(1, Math.floor(dataPoints.length / 10)) !== 0) return null;
+        
+        let x;
+        if (useNarrativeMode) {
+          x = padding.left + chartWidth * (point.x / xRange);
+        } else {
+          x = padding.left + chartWidth * ((point.x - minX) / xRange);
+        }
+        
+        const y = padding.top + chartHeight - chartHeight * ((point.sentiment - yDomainMin) / (yDomainMax - yDomainMin || 1));
+        
         return (
           <circle
             key={i}
             cx={x}
             cy={y}
-            r="2" // Smaller radius
-            fill="#1976d2"
+            r={point.isKeyPoint ? "2.5" : "1.5"}
+            fill={point.sentiment > 0 ? "#4caf50" : 
+                 point.sentiment < 0 ? "#f44336" : 
+                 "#1976d2"}
+            stroke="#fff"
+            strokeWidth="0.5"
           />
         );
       })}
-      */}
     </svg>
   );
 };
