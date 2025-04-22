@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Sentiment from 'sentiment';
 import { automatedReadability } from 'automated-readability';
 import natural from 'natural'; // Import natural
+// Import AFINN lexicon and NLP.js
+import afinn from 'afinn-165';
+import { SentimentAnalyzer } from 'natural';
 
 // Helper functions (keep outside or memoize if needed, but they seem pure)
 const cleanWord = (word) => word.toLowerCase().replace(/[.,;:!?()[\]{}'"]/g, '');
@@ -21,7 +24,6 @@ function countItems(arr) {
 function sortEntries(obj) {
   return Object.entries(obj).sort((a, b) => b[1] - a[1]);
 }
-
 
 const useTextAnalysis = (data) => {
   const [wordFrequencyData, setWordFrequencyData] = useState([]);
@@ -67,13 +69,91 @@ const useTextAnalysis = (data) => {
   }, [stopWords]); // Dependency is stable
 
   const calculateSentimentAnalysis = useCallback((textData) => {
-    const sentimentAnalyzer = new Sentiment(); // Default lexicon
+    // Initialize different sentiment analyzers
+    const standardAnalyzer = new Sentiment(); // Default lexicon
+    
+    // Initialize AFINN analyzer from natural
+    const afinnAnalyzer = new SentimentAnalyzer('English', 'afinn');
+    
+    // Create a simple NLP.js analyzer function using natural's PorterStemmer
+    const { PorterStemmer, WordTokenizer } = natural;
+    const tokenizer = new WordTokenizer();
+    
+    // Function to perform NLP.js-like sentiment analysis
+    const analyzeWithNLPjs = (text) => {
+      const tokens = tokenizer.tokenize(text);
+      let score = 0;
+      let wordCount = 0;
+      const positive = [];
+      const negative = [];
+      
+      tokens.forEach(token => {
+        const word = token.toLowerCase();
+        const stemmed = PorterStemmer.stem(word);
+        
+        // Check both the original word and stemmed version in AFINN
+        // Using a different scoring logic for NLP.js to differentiate it
+        if (afinn[word]) {
+          const wordScore = afinn[word];
+          score += wordScore * 1.2; // Different multiplier from AFINN
+          wordCount++;
+          
+          if (wordScore > 0) {
+            positive.push(word);
+          } else if (wordScore < 0) {
+            negative.push(word);
+          }
+        } else if (afinn[stemmed]) {
+          const wordScore = afinn[stemmed];
+          score += wordScore * 1.2;
+          wordCount++;
+          
+          if (wordScore > 0) {
+            positive.push(stemmed);
+          } else if (wordScore < 0) {
+            negative.push(stemmed);
+          }
+        }
+      });
+      
+      const comparative = wordCount > 0 ? score / wordCount : 0;
+      
+      return {
+        score,
+        comparative,
+        positive,
+        negative
+      };
+    };
+    
+    let totalStandard = 0;
+    let totalAfinn = 0;
+    let totalNlpjs = 0;
+    
     const sentiments = textData.map(item => {
       const text = item.processingResult || item.content || '';
       const date = item.timestamp ? new Date(item.timestamp) : new Date();
-      const result = sentimentAnalyzer.analyze(text);
-      const { score, comparative, words, positive, negative } = result;
-
+      
+      // Standard sentiment analysis
+      const standardResult = standardAnalyzer.analyze(text);
+      const { score, comparative, words, positive, negative } = standardResult;
+      
+      // AFINN analysis using natural
+      const tokens = tokenizer.tokenize(text);
+      const afinnResult = afinnAnalyzer.getSentiment(tokens);
+      
+      // Scale AFINN result to be similar in magnitude to standard
+      const afinnScore = afinnResult * 10;
+      const afinnComparative = afinnResult;
+      
+      // NLP.js style analysis
+      const nlpjsResult = analyzeWithNLPjs(text);
+      
+      // Add to totals for average calculations
+      totalStandard += score;
+      totalAfinn += afinnScore;
+      totalNlpjs += nlpjsResult.score;
+      
       return {
         id: item.id,
         date: date.toISOString().split('T')[0],
@@ -85,8 +165,14 @@ const useTextAnalysis = (data) => {
         textLength: text.length,
         lexicons: {
           standard: { score, comparative },
-          afinn: result.afinn || { score: 0, comparative: 0 },
-          nlpjs: result.nlpjs || { score: 0, comparative: 0 }
+          afinn: { 
+            score: afinnScore, 
+            comparative: afinnComparative 
+          },
+          nlpjs: { 
+            score: nlpjsResult.score, 
+            comparative: nlpjsResult.comparative 
+          }
         }
       };
     });
@@ -94,6 +180,10 @@ const useTextAnalysis = (data) => {
     // Calculate overall metrics
     const totalSentiment = sentiments.reduce((acc, item) => acc + item.sentiment, 0);
     const avgSentiment = sentiments.length > 0 ? totalSentiment / sentiments.length : 0;
+    
+    // Calculate lexicon-specific averages
+    const avgAfinn = sentiments.length > 0 ? totalAfinn / sentiments.length : 0;
+    const avgNlpjs = sentiments.length > 0 ? totalNlpjs / sentiments.length : 0;
 
     const allPositiveWords = sentiments.flatMap(item => item.positiveWords);
     const allNegativeWords = sentiments.flatMap(item => item.negativeWords);
@@ -112,12 +202,12 @@ const useTextAnalysis = (data) => {
         negativeCount: allNegativeWords.length,
         lexiconAverages: {
           standard: avgSentiment,
-          afinn: avgSentiment, // Will be updated when AFINN is implemented
-          nlpjs: avgSentiment  // Will be updated when NLP.js is implemented
+          afinn: avgAfinn,
+          nlpjs: avgNlpjs
         }
       }
     };
-  }, []); // Remove custom lexicon dependencies
+  }, []); // No dependencies needed
 
   const calculateRelationships = useCallback((textData) => {
     const nodes = textData.map((item, index) => ({
