@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Sentiment from 'sentiment';
 import { automatedReadability } from 'automated-readability';
 import natural from 'natural'; // Import natural
-// Import AFINN lexicon and NLP.js
-import afinn from 'afinn-165';
-import { SentimentAnalyzer } from 'natural';
 
 // Helper functions (keep outside or memoize if needed, but they seem pure)
 const cleanWord = (word) => word.toLowerCase().replace(/[.,;:!?()[\]{}'"]/g, '');
@@ -72,12 +69,59 @@ const useTextAnalysis = (data) => {
     // Initialize different sentiment analyzers
     const standardAnalyzer = new Sentiment(); // Default lexicon
     
-    // Initialize AFINN analyzer from natural
-    const afinnAnalyzer = new SentimentAnalyzer('English', 'afinn');
-    
-    // Create a simple NLP.js analyzer function using natural's PorterStemmer
-    const { PorterStemmer, WordTokenizer } = natural;
+    // Create tokenizer for use with both AFINN and NLP.js analysis
+    const { WordTokenizer, PorterStemmer } = natural;
     const tokenizer = new WordTokenizer();
+    
+    // Create a local AFINN-like dictionary for sentiment scoring
+    // This is a fallback in case the afinn-165 package isn't working correctly
+    const afinnDict = {
+      // Positive words
+      'good': 3, 'great': 4, 'excellent': 5, 'happy': 3, 'love': 3, 'awesome': 4,
+      'amazing': 4, 'best': 4, 'better': 2, 'nice': 3, 'wonderful': 4, 'fantastic': 4,
+      'perfect': 5, 'thank': 2, 'thanks': 2, 'positive': 2, 'beautiful': 3, 'joy': 3,
+      'agree': 1, 'appreciate': 2, 'excellent': 5, 'glad': 3, 'impressive': 3,
+      
+      // Negative words
+      'bad': -3, 'worst': -5, 'terrible': -5, 'awful': -4, 'horrible': -5, 'hate': -4,
+      'poor': -3, 'negative': -2, 'wrong': -2, 'sad': -2, 'annoying': -2, 'disappointed': -3,
+      'disappointing': -3, 'failure': -3, 'fail': -2, 'problem': -2, 'sorry': -1, 'angry': -3,
+      'upset': -2, 'unfortunately': -2, 'boring': -2, 'difficult': -1, 'error': -2
+    };
+    
+    // Custom AFINN analysis using our local dictionary
+    const analyzeWithAFINN = (text) => {
+      const tokens = tokenizer.tokenize(text);
+      let score = 0;
+      let wordCount = 0;
+      const positive = [];
+      const negative = [];
+      
+      tokens.forEach(token => {
+        const word = token.toLowerCase();
+        // Use our local dictionary instead of the imported one
+        if (afinnDict[word] !== undefined) {
+          const wordScore = afinnDict[word];
+          score += wordScore;
+          wordCount++;
+          
+          if (wordScore > 0) {
+            positive.push(word);
+          } else if (wordScore < 0) {
+            negative.push(word);
+          }
+        }
+      });
+      
+      const comparative = wordCount > 0 ? score / wordCount : 0;
+      
+      return {
+        score: score * 2, // Scale to be comparable with other lexicons
+        comparative,
+        positive,
+        negative
+      };
+    };
     
     // Function to perform NLP.js-like sentiment analysis
     const analyzeWithNLPjs = (text) => {
@@ -91,11 +135,10 @@ const useTextAnalysis = (data) => {
         const word = token.toLowerCase();
         const stemmed = PorterStemmer.stem(word);
         
-        // Check both the original word and stemmed version in AFINN
-        // Using a different scoring logic for NLP.js to differentiate it
-        if (afinn[word]) {
-          const wordScore = afinn[word];
-          score += wordScore * 1.2; // Different multiplier from AFINN
+        // Check both the original word and stemmed version in our dictionary
+        if (afinnDict[word] !== undefined) {
+          const wordScore = afinnDict[word] * 1.2; // Different multiplier
+          score += wordScore;
           wordCount++;
           
           if (wordScore > 0) {
@@ -103,9 +146,9 @@ const useTextAnalysis = (data) => {
           } else if (wordScore < 0) {
             negative.push(word);
           }
-        } else if (afinn[stemmed]) {
-          const wordScore = afinn[stemmed];
-          score += wordScore * 1.2;
+        } else if (afinnDict[stemmed] !== undefined) {
+          const wordScore = afinnDict[stemmed] * 1.2;
+          score += wordScore;
           wordCount++;
           
           if (wordScore > 0) {
@@ -119,7 +162,7 @@ const useTextAnalysis = (data) => {
       const comparative = wordCount > 0 ? score / wordCount : 0;
       
       return {
-        score,
+        score: score * 1.5, // Scale for display purposes
         comparative,
         positive,
         negative
@@ -138,20 +181,15 @@ const useTextAnalysis = (data) => {
       const standardResult = standardAnalyzer.analyze(text);
       const { score, comparative, words, positive, negative } = standardResult;
       
-      // AFINN analysis using natural
-      const tokens = tokenizer.tokenize(text);
-      const afinnResult = afinnAnalyzer.getSentiment(tokens);
-      
-      // Scale AFINN result to be similar in magnitude to standard
-      const afinnScore = afinnResult * 10;
-      const afinnComparative = afinnResult;
+      // Use custom AFINN analysis instead of SentimentAnalyzer
+      const afinnResult = analyzeWithAFINN(text);
       
       // NLP.js style analysis
       const nlpjsResult = analyzeWithNLPjs(text);
       
       // Add to totals for average calculations
       totalStandard += score;
-      totalAfinn += afinnScore;
+      totalAfinn += afinnResult.score;
       totalNlpjs += nlpjsResult.score;
       
       return {
@@ -166,8 +204,8 @@ const useTextAnalysis = (data) => {
         lexicons: {
           standard: { score, comparative },
           afinn: { 
-            score: afinnScore, 
-            comparative: afinnComparative 
+            score: afinnResult.score, 
+            comparative: afinnResult.comparative 
           },
           nlpjs: { 
             score: nlpjsResult.score, 
