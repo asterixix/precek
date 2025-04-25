@@ -5,6 +5,34 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { v4 as uuidv4 } from 'uuid'; // For unique filenames
 
+// --- PDF Processing ---
+export const processPDF = async (file, sourceName = 'PDF file', apiKeys) => {
+  console.log(`Processing PDF: ${sourceName}`);
+
+  try {
+    const { readPdfFile } = await import('../utils/helpers');
+    const rawText = await readPdfFile(file);
+
+    await addData({
+      type: 'text',
+      source: sourceName,
+      content: `PDF file: ${file.name}`,
+      processingResult: rawText,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(`PDF processed successfully: ${sourceName}`);
+    return { success: true, processingResult: rawText };
+
+  } catch (error) {
+    console.error(`Error processing PDF ${sourceName}:`, error);
+    return {
+      error: true,
+      processingResult: `Error: ${error.message || 'PDF processing failed'}`
+    };
+  }
+};
+
 // --- Text Processing ---
 // Stores raw text directly into the database without AI processing.
 export const processText = async (text, sourceName = 'text input', apiKeys) => {
