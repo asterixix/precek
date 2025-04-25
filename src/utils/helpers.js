@@ -1,9 +1,5 @@
 import Tesseract from 'tesseract.js';
 
-// PDF validation patterns (declare once at top)
-const PDF_HEADER_REGEX = /^%PDF-\d\.\d/;
-const PDF_EOF_REGEX = /%%EOF[\x0D\x0A]?$/;
-
 // PDF.js setup
 let pdfjs = null;
 if (typeof window !== 'undefined') {
@@ -92,140 +88,91 @@ export const readTextFile = (file) => {
 };
 
 // Read text from a PDF file using PDF.js for rendering and Tesseract.js for OCR
-// PDF text extraction with hybrid approach
 export const readPdfFile = async (file) => {
   if (typeof window === 'undefined') {
-    throw new Error("PDF processing requires browser environment");
+    throw new Error("PDF processing can only be done in the browser.");
   }
-
-  // Validate PDF first
-  if (!(await isValidPdf(file))) {
-    throw new Error("Invalid or corrupted PDF file");
+  if (!pdfjs) {
+    // Attempt to wait a bit for dynamic import if called too early
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (!pdfjs) {
+       throw new Error('PDF processing library (PDF.js) is not loaded or failed to load.');
+    }
   }
 
   let worker;
   try {
-    // Read the array buffer once
+    worker = await initializeTesseract();
+    if (!worker) {
+      throw new Error("Tesseract worker is not available.");
+    }
+  } catch (error) {
+    console.error("Tesseract initialization failed:", error);
+    throw error; // Re-throw the error
+  }
+
+  try {
+    console.log("Reading PDF file:", file.name);
     const arrayBuffer = await file.arrayBuffer();
 
-    // Pass copies of the buffer to functions that might consume it
-    const pdfType = await detectPdfType(arrayBuffer.slice(0));
+    // Ensure worker source is set (redundant if set globally, but safe)
+    // pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@5.1.91/build/pdf.worker.min.mjs`; // Already set globally
 
-    // Hybrid extraction workflow
-    let text = '';
-    if (pdfType === 'text') {
-      text = await extractNativeText(arrayBuffer.slice(0));
-    } else {
-      worker = await initializeTesseract();
-      text = await extractOcrText(arrayBuffer.slice(0), worker);
-    }
-
-    // Post-processing
-    return cleanExtractedText(text);
-  } catch (error) {
-    console.error('PDF processing failed:', error);
-    throw new Error(`PDF processing error: ${error.message}`);
-  } finally {
-    if (worker) {
-      try { await worker.terminate() } catch(e) {}
-    }
-  }
-};
-
-// Helper: Validate PDF structure using PDF.js
-const isValidPdf = async (file) => {
-  if (!pdfjs) {
-    console.warn("PDF.js not loaded, skipping detailed PDF validation.");
-    // Fallback to a basic check if PDF.js isn't available
-    try {
-      const arr = new Uint8Array(await file.arrayBuffer());
-      const header = String.fromCharCode(...arr.subarray(0,4));
-      return PDF_HEADER_REGEX.test(header); // Just check header as a basic fallback
-    } catch {
-      return false;
-    }
-  }
-  try {
-    // Attempt to load the PDF using PDF.js
-    const loadingTask = pdfjs.getDocument(await file.arrayBuffer());
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
-    // If loading succeeds, it's likely a valid PDF
-    await pdf.destroy(); // Clean up resources
-    return true;
+    console.log(`PDF loaded: ${pdf.numPages} pages.`);
+
+    let fullText = '';
+    const canvas = document.createElement('canvas'); // Create canvas for rendering
+    const context = canvas.getContext('2d');
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      console.log(`Processing page ${i}...`);
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 }); // Increase scale for better OCR accuracy
+
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport,
+      };
+
+      await page.render(renderContext).promise;
+      console.log(`Page ${i} rendered to canvas.`);
+
+      // Perform OCR on the rendered canvas
+      console.log(`Performing OCR on page ${i}...`);
+      const { data: { text } } = await worker.recognize(canvas);
+      console.log(`OCR result for page ${i} obtained.`);
+      fullText += text + '\n\n'; // Add space between pages
+
+      // Clean up page resources if necessary (check PDF.js docs for best practices)
+      page.cleanup();
+    }
+
+    // Terminate worker if no longer needed frequently, or keep it for reuse
+    // await worker.terminate(); // Consider terminating if usage is infrequent
+    // console.log("Tesseract worker terminated.");
+
+    canvas.remove(); // Clean up the canvas element
+    console.log("PDF OCR finished.");
+    return fullText.trim();
+
   } catch (error) {
-    console.error("PDF.js validation failed:", error);
-    return false; // If loading fails, it's likely invalid
+    console.error('Error processing PDF with OCR:', error);
+    // Attempt to terminate worker on error if it exists
+    if (worker && worker.terminate) {
+      try {
+        await worker.terminate();
+        console.log("Tesseract worker terminated due to error.");
+      } catch (termError) {
+        console.error("Error terminating Tesseract worker:", termError);
+      }
+    }
+    throw new Error(`Failed to extract text from PDF using OCR: ${error.message}`);
   }
-};
-
-// Helper: Detect PDF type (text/image)
-const detectPdfType = async (arrayBuffer) => {
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-  const page = await pdf.getPage(1);
-  const textContent = await page.getTextContent();
-  page.cleanup();
-
-  return textContent.items.length > 5 ? 'text' : 'image';
-};
-
-// Native text extraction for text-based PDFs
-const extractNativeText = async (arrayBuffer) => {
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-  let text = '';
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    text += textContent.items
-      .map(item => item.str)
-      .join(' ') + '\n\n';
-    page.cleanup();
-  }
-
-  return text;
-};
-
-// OCR extraction for image-based PDFs
-const extractOcrText = async (arrayBuffer, worker) => {
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  let text = '';
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 2.0 });
-    
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    const { data: { text: pageText } } = await worker.recognize(canvas);
-    text += pageText + '\n\n';
-    page.cleanup();
-  }
-
-  canvas.remove();
-  return text;
-};
-
-// Text normalization pipeline
-const cleanExtractedText = (text) => {
-  return text
-    // Fix hyphenated words
-    .replace(/(\w+-\n\w+)/g, (m) => m.replace(/-\n/g, ''))
-    // Remove control characters
-    .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
-    // Normalize whitespace
-    .replace(/\s+/g, ' ')
-    // Fix quotation marks
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    // Remove orphan characters
-    .replace(/(\s\w\s)/g, ' ')
-    // Trim and condense
-    .trim()
-    .replace(/\n{3,}/g, '\n\n');
 };
 
 /**
