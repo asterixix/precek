@@ -1,6 +1,6 @@
 # Precek
 
-Precek is a cross-platform application that processes text, image, audio, and video files using AI models to create interactive visualizations, summaries, trends, and contextual analyses. The app leverages OpenRouter's AI models  or OpenAI Platform for processing different types of media and builds a temporary database for data visualization.
+Precek is a application that processes text, image, audio, and video files using AI models to create interactive visualizations, summaries, trends, and contextual analyses. The app leverages OpenRouter's AI models  or OpenAI Platform for processing different types of media and builds a temporary database for data visualization.
 
 ## Core Functionality
 
