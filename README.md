@@ -71,3 +71,5 @@ Access the application at `http://localhost:3000`
 npm run build
 npm run web
 ```
+
+Have a nice day!
