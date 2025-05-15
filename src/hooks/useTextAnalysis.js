@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import Sentiment from 'sentiment'; // Standard sentiment analysis
-import { automatedReadability } from 'automated-readability'; // For readability scores
-import natural from 'natural'; // For NLP tasks like tokenization, stemming, n-grams
+import Sentiment from 'sentiment';
+import { automatedReadability } from 'automated-readability'; 
+import natural from 'natural'; 
 import { cleanWord, countItems, sortEntries, truncateText } from '../utils/helpers';
 
 
@@ -15,7 +15,7 @@ const AFINN_DICT = {
   'good': 3, 'great': 4, 'excellent': 5, 'happy': 3, 'love': 3, 'awesome': 4,
   'amazing': 4, 'best': 4, 'better': 2, 'nice': 3, 'wonderful': 4, 'fantastic': 4,
   'perfect': 5, 'thank': 2, 'thanks': 2, 'positive': 2, 'beautiful': 3, 'joy': 3,
-  'agree': 1, 'appreciate': 2, 'excellent': 5, 'glad': 3, 'impressive': 3,
+  'agree': 1, 'appreciate': 2, 'glad': 3, 'impressive': 3,
   
   // Negative words
   'bad': -3, 'worst': -5, 'terrible': -5, 'awful': -4, 'horrible': -5, 'hate': -4,
@@ -55,7 +55,7 @@ const useTextAnalysis = (data) => {
       const text = item.processingResult || item.content || '';
       const lowerText = text.toLowerCase();
       
-      // Basic tokenization for general use (e.g., sentiment that might do its own stemming)
+      // Basic tokenization for general use 
       const generalTokens = WORD_TOKENIZER.tokenize(lowerText);
 
       // Words filtered for frequency, relationships (cleaned, non-stop-word, valid format)
@@ -294,7 +294,7 @@ const useTextAnalysis = (data) => {
       }
     });
     return results; // Return the result
-  }, []); // `cleanWord` is a stable helper.
+  }, []); // Dependencies are stable.
 
   // Calculates Type-Token Ratio (TTR)
   const calculateTTR = useCallback((textToCalc) => {
@@ -388,7 +388,6 @@ const useTextAnalysis = (data) => {
 
   
    // Calculate an overview summary 
-   
   const calculateOverviewSummary = useCallback((items, combinedText, ttrResult) => {
     if (!items || items.length === 0 || !combinedText) {
       return {
