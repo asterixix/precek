@@ -27,7 +27,7 @@ function TabPanel(props) {
   const { children, value, index, ...other } = props;
   return (
     <div
-      role="tabpanel"
+      role='tabpanel'
       hidden={value !== index}
       id={`tabpanel-${index}`}
       aria-labelledby={`tab-${index}`}
@@ -52,7 +52,7 @@ const TextAnalysisVisualizations = ({ data }) => {
     topicModelData,
     phraseLinkData, // Should now be populated by the hook
     isLoading,
-    searchConcordance
+    searchConcordance,
   } = useTextAnalysis(data);
 
   const handleTabChange = (event, newValue) => {
@@ -60,32 +60,44 @@ const TextAnalysisVisualizations = ({ data }) => {
   };
 
   // Memoize the handler passed to ConcordanceTab
-  const handleConcordanceSearch = useCallback((term) => {
+  const handleConcordanceSearch = useCallback(
+    (term) => {
       if (searchConcordance) {
-          searchConcordance(term);
+        searchConcordance(term);
       }
-  }, [searchConcordance]);
+    },
+    [searchConcordance]
+  );
 
   // Adjust loading condition to check for overviewData
-  if (isLoading && !overviewData) { // Check if overviewData is loaded
-      return (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-              <CircularProgress />
-              <Typography sx={{ ml: 2 }}>Analyzing data...</Typography>
-          </Box>
-      );
+  if (isLoading && !overviewData) {
+    // Check if overviewData is loaded
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '400px',
+        }}
+      >
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Analyzing data...</Typography>
+      </Box>
+    );
   }
 
   // Show message if no data is provided
   if (!data || data.length === 0) {
-      // ... existing no data message ...
-      return (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-              <Typography color="text.secondary">No data available for analysis. Process some content first.</Typography>
-          </Box>
-      );
+    // ... existing no data message ...
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography color='text.secondary'>
+          No data available for analysis. Process some content first.
+        </Typography>
+      </Box>
+    );
   }
-
 
   return (
     <Box sx={{ width: '100%' }}>
@@ -93,19 +105,19 @@ const TextAnalysisVisualizations = ({ data }) => {
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-          aria-label="Text analysis tabs"
+          variant='scrollable'
+          scrollButtons='auto'
+          aria-label='Text analysis tabs'
         >
           {/* Tabs including Overview and Phrase Links */}
-          <Tab label="Overview" id="tab-0" aria-controls="tabpanel-0" />
-          <Tab label="Word Frequency" id="tab-1" aria-controls="tabpanel-1" />
-          <Tab label="Sentiment" id="tab-2" aria-controls="tabpanel-2" />
-          <Tab label="Relationships" id="tab-3" aria-controls="tabpanel-3" />
-          <Tab label="TTR" id="tab-4" aria-controls="tabpanel-4" />
-          <Tab label="Concordance" id="tab-5" aria-controls="tabpanel-5" />
-          <Tab label="Topics" id="tab-6" aria-controls="tabpanel-6" />
-          <Tab label="Phrase Links" id="tab-7" aria-controls="tabpanel-7" />
+          <Tab label='Overview' id='tab-0' aria-controls='tabpanel-0' />
+          <Tab label='Word Frequency' id='tab-1' aria-controls='tabpanel-1' />
+          <Tab label='Sentiment' id='tab-2' aria-controls='tabpanel-2' />
+          <Tab label='Relationships' id='tab-3' aria-controls='tabpanel-3' />
+          <Tab label='TTR' id='tab-4' aria-controls='tabpanel-4' />
+          <Tab label='Concordance' id='tab-5' aria-controls='tabpanel-5' />
+          <Tab label='Topics' id='tab-6' aria-controls='tabpanel-6' />
+          <Tab label='Phrase Links' id='tab-7' aria-controls='tabpanel-7' />
         </Tabs>
       </Box>
 
@@ -116,15 +128,24 @@ const TextAnalysisVisualizations = ({ data }) => {
       </TabPanel>
 
       <TabPanel value={activeTab} index={1}>
-        <WordFrequencyTab wordFrequencyData={wordFrequencyData} isLoading={isLoading} />
+        <WordFrequencyTab
+          wordFrequencyData={wordFrequencyData}
+          isLoading={isLoading}
+        />
       </TabPanel>
 
       <TabPanel value={activeTab} index={2}>
-        <SentimentAnalysisTab sentimentData={sentimentData} isLoading={isLoading} />
+        <SentimentAnalysisTab
+          sentimentData={sentimentData}
+          isLoading={isLoading}
+        />
       </TabPanel>
 
       <TabPanel value={activeTab} index={3}>
-        <TextRelationshipsTab relationshipData={relationshipData} isLoading={isLoading} />
+        <TextRelationshipsTab
+          relationshipData={relationshipData}
+          isLoading={isLoading}
+        />
       </TabPanel>
 
       <TabPanel value={activeTab} index={4}>
@@ -132,22 +153,25 @@ const TextAnalysisVisualizations = ({ data }) => {
       </TabPanel>
 
       <TabPanel value={activeTab} index={5}>
-         <ConcordanceTab
-            concordanceData={concordanceData}
-            onSearch={handleConcordanceSearch}
-            isLoading={isLoading}
-         />
+        <ConcordanceTab
+          concordanceData={concordanceData}
+          onSearch={handleConcordanceSearch}
+          isLoading={isLoading}
+          textId={data[0]?.id} // Pass the ID of the first text item
+        />
       </TabPanel>
 
       <TabPanel value={activeTab} index={6}>
-         <TopicModelingTab topicModelData={topicModelData} isLoading={isLoading} />
+        <TopicModelingTab
+          topicModelData={topicModelData}
+          isLoading={isLoading}
+        />
       </TabPanel>
 
       <TabPanel value={activeTab} index={7}>
-         {/* Pass phraseLinkData */}
-         <PhrasesLinkTab phraseLinkData={phraseLinkData} isLoading={isLoading} />
+        {/* Pass phraseLinkData */}
+        <PhrasesLinkTab phraseLinkData={phraseLinkData} isLoading={isLoading} />
       </TabPanel>
-
     </Box>
   );
 };
