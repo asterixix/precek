@@ -12,9 +12,10 @@ import ListItemText from '@mui/material/ListItemText';
 import CircularProgress from '@mui/material/CircularProgress';
 import Paper from '@mui/material/Paper';
 import SearchIcon from '@mui/icons-material/Search';
+import Link from 'next/link';
 import debounce from 'lodash.debounce';
 
-const ConcordanceTab = ({ concordanceData, onSearch, isLoading }) => {
+const ConcordanceTab = ({ concordanceData, onSearch, isLoading, textId }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Store the latest onSearch function in a ref
@@ -58,22 +59,26 @@ const ConcordanceTab = ({ concordanceData, onSearch, isLoading }) => {
   return (
     <Card elevation={2}>
       <CardHeader
-        title={<Typography variant="h6">Concordance Analysis</Typography>}
-        subheader={<Typography variant="body2" color="text.secondary">Find occurrences of a word in context</Typography>}
+        title={<Typography variant='h6'>Concordance Analysis</Typography>}
+        subheader={
+          <Typography variant='body2' color='text.secondary'>
+            Find occurrences of a word in context
+          </Typography>
+        }
       />
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <TextField
             fullWidth
-            label="Search Term"
-            variant="outlined"
+            label='Search Term'
+            variant='outlined'
             value={searchTerm}
             onChange={handleInputChange}
-            size="small"
+            size='small'
             sx={{ mr: 1 }}
           />
           <Button
-            variant="contained"
+            variant='contained'
             onClick={handleSearchClick}
             startIcon={<SearchIcon />}
             // Use the passed isLoading prop correctly
@@ -90,25 +95,45 @@ const ConcordanceTab = ({ concordanceData, onSearch, isLoading }) => {
             <Typography sx={{ ml: 2 }}>Searching...</Typography>
           </Box>
         ) : concordanceData && concordanceData.length > 0 ? (
-          <Paper variant="outlined" sx={{ maxHeight: 400, overflowY: 'auto' }}>
+          <Paper variant='outlined' sx={{ maxHeight: 400, overflowY: 'auto' }}>
             <List dense>
               {concordanceData.map((item, index) => (
-                <ListItem key={item.position || index} divider>
-                  {/* Use dangerouslySetInnerHTML carefully, assuming hook sanitizes or context is controlled */}
-                  <ListItemText
-                     primary={<span dangerouslySetInnerHTML={{ __html: item.highlightedContext }} />}
-                     secondary={`Position: ${item.position}`}
-                  />
-                </ListItem>
+                <Link
+                  key={item.position || index}
+                  href={`/readtext?id=${textId}&highlight=${item.position}`}
+                  passHref
+                  legacyBehavior //Use legacyBehavior to ensure the Link component works correctly with ListItem
+                >
+                  <ListItem button component='a' divider>
+                    <ListItemText
+                      primary={
+                        <span
+                          dangerouslySetInnerHTML={{
+                            __html: item.highlightedContext,
+                          }}
+                        />
+                      }
+                      secondary={`Position: ${item.position}`}
+                    />
+                  </ListItem>
+                </Link>
               ))}
             </List>
           </Paper>
         ) : searchTerm.trim() ? (
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
+          <Typography
+            variant='body2'
+            color='text.secondary'
+            sx={{ textAlign: 'center', mt: 2 }}
+          >
             No occurrences found for "{searchTerm}".
           </Typography>
         ) : (
-           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
+          <Typography
+            variant='body2'
+            color='text.secondary'
+            sx={{ textAlign: 'center', mt: 2 }}
+          >
             Enter a term above to search for its context.
           </Typography>
         )}
