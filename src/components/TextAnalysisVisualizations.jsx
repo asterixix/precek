@@ -38,7 +38,7 @@ function TabPanel(props) {
   );
 }
 
-const TextAnalysisVisualizations = ({ data }) => {
+const TextAnalysisVisualizations = ({ data, selectedTextId }) => {
   const [activeTab, setActiveTab] = useState(0);
 
   // Destructure the new data from the hook
@@ -157,7 +157,7 @@ const TextAnalysisVisualizations = ({ data }) => {
           concordanceData={concordanceData}
           onSearch={handleConcordanceSearch}
           isLoading={isLoading}
-          textId={data[0]?.id} // Pass the ID of the first text item
+          textId={selectedTextId} // Pass the ID of the first text item
         />
       </TabPanel>
 
