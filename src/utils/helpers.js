@@ -61,6 +61,26 @@ export function truncateText(text, maxLength) {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
+// Counts the occurrences of each item in an array
+export function countItems(arr) {
+  return arr.reduce((acc, item) => {
+    acc[item] = (acc[item] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+// Sorts object entries by value in descending order.
+export function sortEntries(obj) {
+  return Object.entries(obj).sort((a, b) => b[1] - a[1]);
+}
+
+// Cleans a word by removing punctuation and converting to lowercase
+export function cleanWord(word) {
+  if (!word) return "";
+  return word.toLowerCase().replace(/[.,;:!?()[\]{}'"“”…‘’]/g, "");
+}
+
+
 // Get MUI color based on item type
 export function getTypeColorMui(type) {
   switch (type) {
