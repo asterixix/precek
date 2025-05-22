@@ -1,27 +1,96 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import Sentiment from 'sentiment';
-import { automatedReadability } from 'automated-readability'; 
-import natural from 'natural'; 
-import { cleanWord, countItems, sortEntries, truncateText } from '../utils/helpers';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import Sentiment from "sentiment";
+import { automatedReadability } from "automated-readability";
+import natural from "natural";
+import {
+  cleanWord,
+  countItems,
+  sortEntries,
+  truncateText,
+} from "../utils/helpers";
 
-
-const STOP_WORDS = new Set(['the', 'and', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'is', 'are', 'be', 'this', 'that', 'with', 'from', 'by', 'was', 'were', 'has', 'have', 'had', 'it', 'as', 'not', 'or', 'but']);
-
+const STOP_WORDS = new Set([
+  "the",
+  "and",
+  "a",
+  "an",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "is",
+  "are",
+  "be",
+  "this",
+  "that",
+  "with",
+  "from",
+  "by",
+  "was",
+  "were",
+  "has",
+  "have",
+  "had",
+  "it",
+  "as",
+  "not",
+  "or",
+  "but",
+]);
 
 // Local AFINN-like dictionary for custom sentiment scoring.
 // This provides a consistent baseline and fallback.
 const AFINN_DICT = {
   // Positive words
-  'good': 3, 'great': 4, 'excellent': 5, 'happy': 3, 'love': 3, 'awesome': 4,
-  'amazing': 4, 'best': 4, 'better': 2, 'nice': 3, 'wonderful': 4, 'fantastic': 4,
-  'perfect': 5, 'thank': 2, 'thanks': 2, 'positive': 2, 'beautiful': 3, 'joy': 3,
-  'agree': 1, 'appreciate': 2, 'glad': 3, 'impressive': 3,
-  
+  good: 3,
+  great: 4,
+  excellent: 5,
+  happy: 3,
+  love: 3,
+  awesome: 4,
+  amazing: 4,
+  best: 4,
+  better: 2,
+  nice: 3,
+  wonderful: 4,
+  fantastic: 4,
+  perfect: 5,
+  thank: 2,
+  thanks: 2,
+  positive: 2,
+  beautiful: 3,
+  joy: 3,
+  agree: 1,
+  appreciate: 2,
+  glad: 3,
+  impressive: 3,
+
   // Negative words
-  'bad': -3, 'worst': -5, 'terrible': -5, 'awful': -4, 'horrible': -5, 'hate': -4,
-  'poor': -3, 'negative': -2, 'wrong': -2, 'sad': -2, 'annoying': -2, 'disappointed': -3,
-  'disappointing': -3, 'failure': -3, 'fail': -2, 'problem': -2, 'sorry': -1, 'angry': -3,
-  'upset': -2, 'unfortunately': -2, 'boring': -2, 'difficult': -1, 'error': -2
+  bad: -3,
+  worst: -5,
+  terrible: -5,
+  awful: -4,
+  horrible: -5,
+  hate: -4,
+  poor: -3,
+  negative: -2,
+  wrong: -2,
+  sad: -2,
+  annoying: -2,
+  disappointed: -3,
+  disappointing: -3,
+  failure: -3,
+  fail: -2,
+  problem: -2,
+  sorry: -1,
+  angry: -3,
+  upset: -2,
+  unfortunately: -2,
+  boring: -2,
+  difficult: -1,
+  error: -2,
 };
 
 // NLP utility instances (created once for efficiency)
@@ -29,39 +98,57 @@ const WORD_TOKENIZER = new natural.WordTokenizer();
 const SENTENCE_TOKENIZER = new natural.SentenceTokenizer();
 const { PorterStemmer } = natural; // PorterStemmer is an object with a 'stem' method
 
-
 const useTextAnalysis = (data) => {
   // --- State Declarations ---
   const [wordFrequencyData, setWordFrequencyData] = useState([]);
-  const [sentimentData, setSentimentData] = useState({ items: [], overall: {} });
-  const [relationshipData, setRelationshipData] = useState({ nodes: [], links: [] });
+  const [sentimentData, setSentimentData] = useState({
+    items: [],
+    overall: {},
+  });
+  const [relationshipData, setRelationshipData] = useState({
+    nodes: [],
+    links: [],
+  });
   const [concordanceData, setConcordanceData] = useState([]);
-  const [ttrData, setTtrData] = useState({ ttr: 0, uniqueWords: 0, totalWords: 0 });
+  const [ttrData, setTtrData] = useState({
+    ttr: 0,
+    uniqueWords: 0,
+    totalWords: 0,
+  });
   const [topicModelData, setTopicModelData] = useState([]);
   const [overviewData, setOverviewData] = useState(null); // Add state for overview data
-  const [phraseLinkData, setPhraseLinkData] = useState({ nodes: [], links: [] }); // Add state for phrase links
+  const [phraseLinkData, setPhraseLinkData] = useState({
+    nodes: [],
+    links: [],
+  }); // Add state for phrase links
+  const [wordByWordData, setWordByWordData] = useState([]); // Add state for word-by-word analysis
   const [isLoading, setIsLoading] = useState(false);
 
   // Memoize the combined text to avoid recalculating it multiple times
   const allText = useMemo(() => {
-    if (!data || data.length === 0) return '';
-    return data.map(item => item.processingResult || item.content || '').join(' ');
+    if (!data || data.length === 0) return "";
+    return data
+      .map((item) => item.processingResult || item.content || "")
+      .join(" ");
   }, [data]);
 
   // Memoize pre-processed data items to avoid redundant cleaning and tokenization.
   const processedDataItems = useMemo(() => {
     if (!data || data.length === 0) return [];
     return data.map((item, index) => {
-      const text = item.processingResult || item.content || '';
+      const text = item.processingResult || item.content || "";
       const lowerText = text.toLowerCase();
-      
-      // Basic tokenization for general use 
+
+      // Basic tokenization for general use
       const generalTokens = WORD_TOKENIZER.tokenize(lowerText);
 
       // Words filtered for frequency, relationships (cleaned, non-stop-word, valid format)
       const filteredWords = generalTokens
-        .map(token => cleanWord(token)) // cleanWord also lowercases
-        .filter(word => word.length > 2 && /^[a-z]+$/i.test(word) && !STOP_WORDS.has(word));
+        .map((token) => cleanWord(token)) // cleanWord also lowercases
+        .filter(
+          (word) =>
+            word.length > 2 && /^[a-z]+$/i.test(word) && !STOP_WORDS.has(word)
+        );
 
       return {
         id: item.id,
@@ -74,15 +161,13 @@ const useTextAnalysis = (data) => {
     });
   }, [data]); // Depends only on `data` as constants (STOP_WORDS, WORD_TOKENIZER) are stable.
 
-
-  
   // --- Processing Functions ---
 
   const calculateWordFrequency = useCallback((items) => {
     if (!items || items.length === 0) return [];
 
     // Combine all filtered words from all items
-    const allWords = items.flatMap(item => item.filteredWords);
+    const allWords = items.flatMap((item) => item.filteredWords);
     const frequency = countItems(allWords);
 
     return sortEntries(frequency)
@@ -90,12 +175,10 @@ const useTextAnalysis = (data) => {
       .slice(0, 50); // Top 50
   }, []); // No external dependencies as `items` (processedDataItems) contains all needed info.
 
-  
- 
   const calculateSentimentAnalysis = useCallback((items) => {
     if (!items || items.length === 0) return { items: [], overall: {} };
 
-    const standardAnalyzer  = new Sentiment(); // Default lexicon
+    const standardAnalyzer = new Sentiment(); // Default lexicon
 
     // Custom AFINN-based analysis using the local AFINN_DICT
     const analyzeWithAFINN = (textTokens) => {
@@ -104,7 +187,7 @@ const useTextAnalysis = (data) => {
       const positive = [];
       const negative = [];
 
-      textTokens.forEach(token => {
+      textTokens.forEach((token) => {
         const word = cleanWord(token); // Ensure consistency with AFINN_DICT keys
         if (AFINN_DICT[word] !== undefined) {
           const wordScore = AFINN_DICT[word];
@@ -115,12 +198,12 @@ const useTextAnalysis = (data) => {
         }
       });
       const comparative = wordCount > 0 ? score / wordCount : 0;
-      
+
       return {
         score: score * 2, // Scale to be comparable with other lexicons
         comparative,
         positive,
-        negative
+        negative,
       };
     };
 
@@ -131,7 +214,7 @@ const useTextAnalysis = (data) => {
       const positive = [];
       const negative = [];
 
-      textTokens.forEach(token => {
+      textTokens.forEach((token) => {
         const word = cleanWord(token);
         const stemmed = PorterStemmer.stem(word);
         let wordScore;
@@ -145,7 +228,7 @@ const useTextAnalysis = (data) => {
         if (wordScore !== undefined) {
           score += wordScore;
           wordCount++;
-          
+
           if (wordScore > 0) {
             positive.push(stemmed);
           } else if (wordScore < 0) {
@@ -155,19 +238,19 @@ const useTextAnalysis = (data) => {
       });
 
       const comparative = wordCount > 0 ? score / wordCount : 0;
-      
+
       return {
         score: score * 1.5, // Scale for display purposes
         comparative,
         positive,
-        negative
+        negative,
       };
     };
 
     let totalStandard = 0;
     let totalAfinn = 0;
     let totalNlpjs = 0;
-    const sentimentResults = items.map(item => {
+    const sentimentResults = items.map((item) => {
       const standardResult = standardAnalyzer.analyze(item.originalText);
       const { score, comparative, words, positive, negative } = standardResult;
       const afinnResult = analyzeWithAFINN(item.generalTokens);
@@ -179,7 +262,7 @@ const useTextAnalysis = (data) => {
 
       return {
         id: item.id,
-        date: item.timestamp.toISOString().split('T')[0],
+        date: item.timestamp.toISOString().split("T")[0],
         sentiment: score,
         comparative: comparative,
         positiveWords: positive,
@@ -188,15 +271,15 @@ const useTextAnalysis = (data) => {
         textLength: item.originalText.length,
         lexicons: {
           standard: { score, comparative },
-          afinn: { 
-            score: afinnResult.score, 
-            comparative: afinnResult.comparative 
+          afinn: {
+            score: afinnResult.score,
+            comparative: afinnResult.comparative,
           },
-          nlpjs: { 
-            score: nlpjsResult.score, 
-            comparative: nlpjsResult.comparative 
-          }
-        }
+          nlpjs: {
+            score: nlpjsResult.score,
+            comparative: nlpjsResult.comparative,
+          },
+        },
       };
     });
 
@@ -205,8 +288,12 @@ const useTextAnalysis = (data) => {
     const overallAvgAfinn = numItems > 0 ? totalAfinn / numItems : 0;
     const overallAvgNlpjs = numItems > 0 ? totalNlpjs / numItems : 0;
 
-    const allPositiveWords = sentimentResults.flatMap(res => res.positiveWords);
-    const allNegativeWords = sentimentResults.flatMap(res => res.negativeWords);
+    const allPositiveWords = sentimentResults.flatMap(
+      (res) => res.positiveWords
+    );
+    const allNegativeWords = sentimentResults.flatMap(
+      (res) => res.negativeWords
+    );
 
     return {
       items: sentimentResults,
@@ -226,14 +313,13 @@ const useTextAnalysis = (data) => {
     };
   }, []); // No dependencies needed as PorterStemmer and AFINN_DICT are stable constants.
 
-  
   const calculateRelationships = useCallback((items) => {
     if (!items || items.length < 2) return { nodes: [], links: [] };
 
     const nodes = items.map((item, index) => ({
       id: item.id || index.toString(), // Use item ID if available
       name: item.originalName || `Text ${index + 1}`,
-      val: 1 + (item.originalText || '').length / 1000, // size based on text length
+      val: 1 + (item.originalText || "").length / 1000, // size based on text length
       wordsSet: new Set(item.filteredWords), // Use pre-filtered words for comparison
     }));
 
@@ -247,14 +333,16 @@ const useTextAnalysis = (data) => {
         const node2 = nodes[j];
 
         // Find intersection of word sets
-        const intersection = new Set([...node1.wordsSet].filter(word => node2.wordsSet.has(word)));
+        const intersection = new Set(
+          [...node1.wordsSet].filter((word) => node2.wordsSet.has(word))
+        );
         const sharedWordCount = intersection.size;
 
         if (sharedWordCount >= minSharedWords) {
           links.push({
             source: node1.id,
             target: node2.id,
-            value: sharedWordCount // Link strength based on shared word count
+            value: sharedWordCount, // Link strength based on shared word count
           });
         }
       }
@@ -264,9 +352,8 @@ const useTextAnalysis = (data) => {
     return { nodes: finalNodes, links };
   }, []); // Depends only on `items` (processedDataItems).
 
- 
   const calculateConcordance = useCallback((textToSearch, term) => {
-    if (!term || term.trim() === '' || !textToSearch) {
+    if (!term || term.trim() === "" || !textToSearch) {
       return []; // Return empty array
     }
 
@@ -289,7 +376,7 @@ const useTextAnalysis = (data) => {
           // Highlight the matched word in context
           highlightedContext: contextWords
             .map((w, idx) => (startIdx + idx === i ? `<mark>${w}</mark>` : w))
-            .join(' ')
+            .join(" "),
         });
       }
     });
@@ -298,13 +385,13 @@ const useTextAnalysis = (data) => {
 
   // Calculates Type-Token Ratio (TTR)
   const calculateTTR = useCallback((textToCalc) => {
-    if (!textToCalc || textToCalc.trim() === '') {
+    if (!textToCalc || textToCalc.trim() === "") {
       return { ttr: 0, uniqueWords: 0, totalWords: 0 }; // Return default
     }
     // Use general tokenization and cleaning for TTR
     const words = WORD_TOKENIZER.tokenize(textToCalc.toLowerCase())
       .map(cleanWord)
-      .filter(word => word.length > 0);
+      .filter((word) => word.length > 0);
 
     const totalWords = words.length;
     const uniqueWords = new Set(words).size;
@@ -313,19 +400,19 @@ const useTextAnalysis = (data) => {
     return { ttr, uniqueWords, totalWords };
   }, []); // Dependences are stable.
 
- 
   const calculateTopicModeling = useCallback((textToModel) => {
-    if (!textToModel || textToModel.trim() === '') return [];
+    if (!textToModel || textToModel.trim() === "") return [];
 
-    const sentences = SENTENCE_TOKENIZER.tokenize(textToModel)
-      .filter(s => s.trim().length > 10); // Consider sentences with some substance
+    const sentences = SENTENCE_TOKENIZER.tokenize(textToModel).filter(
+      (s) => s.trim().length > 10
+    ); // Consider sentences with some substance
 
     const cooccurrences = {};
 
-    sentences.forEach(sentence => {
+    sentences.forEach((sentence) => {
       const words = WORD_TOKENIZER.tokenize(sentence.toLowerCase())
         .map(cleanWord)
-        .filter(word => word.length > 2 && !STOP_WORDS.has(word));
+        .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 
       const uniqueWordsInSentence = Array.from(new Set(words)); // Count co-occurrence once per sentence
 
@@ -344,13 +431,20 @@ const useTextAnalysis = (data) => {
     });
 
     // Calculate word frequency based on co-occurrences
-    const wordFrequency = Object.entries(cooccurrences).reduce((acc, [word, related]) => {
-        acc[word] = Object.values(related).reduce((sum, count) => sum + count, 0);
+    const wordFrequency = Object.entries(cooccurrences).reduce(
+      (acc, [word, related]) => {
+        acc[word] = Object.values(related).reduce(
+          (sum, count) => sum + count,
+          0
+        );
         return acc;
-    }, {});
+      },
+      {}
+    );
 
-    const sortedWords = Object.keys(wordFrequency)
-                              .sort((a, b) => wordFrequency[b] - wordFrequency[a]);
+    const sortedWords = Object.keys(wordFrequency).sort(
+      (a, b) => wordFrequency[b] - wordFrequency[a]
+    );
 
     const topics = [];
     const processedWords = new Set();
@@ -361,14 +455,15 @@ const useTextAnalysis = (data) => {
       if (processedWords.has(word) || !cooccurrences[word]) continue;
 
       const relatedWords = Object.keys(cooccurrences[word])
-                                .sort((a, b) => cooccurrences[word][b] - cooccurrences[word][a])
-                                .slice(0, relatedWordsCount);
+        .sort((a, b) => cooccurrences[word][b] - cooccurrences[word][a])
+        .slice(0, relatedWordsCount);
 
-      if (relatedWords.length > 0) { // Only add topic if related words exist
+      if (relatedWords.length > 0) {
+        // Only add topic if related words exist
         topics.push({
           mainWord: word,
           relatedWords,
-          strength: wordFrequency[word] // Use calculated frequency
+          strength: wordFrequency[word], // Use calculated frequency
         });
 
         // Mark words as processed to avoid overlap in topics
@@ -380,108 +475,138 @@ const useTextAnalysis = (data) => {
 
     // Normalize strength relative to the top topic for visualization
     const maxStrength = topics[0]?.strength || 1;
-    return topics.map(topic => ({
+    return topics.map((topic) => ({
       ...topic,
       normalizedStrength: topic.strength / maxStrength,
     }));
   }, []); // Depends on stable constants (SENTENCE_TOKENIZER, WORD_TOKENIZER, STOP_WORDS, cleanWord).
 
-  
-   // Calculate an overview summary 
-  const calculateOverviewSummary = useCallback((items, combinedText, ttrResult) => {
-    if (!items || items.length === 0 || !combinedText) {
-      return {
-        totalWords: 0, totalPhrases: 0, totalTexts: 0, vocabularyDensity: 0,
-        readabilityIndex: null, avgWordsPerSentence: 0, phraseGraphData: { nodes: [], links: [] }
-      };
-    }
+  // Calculate an overview summary
+  const calculateOverviewSummary = useCallback(
+    (items, combinedText, ttrResult) => {
+      if (!items || items.length === 0 || !combinedText) {
+        return {
+          totalWords: 0,
+          totalPhrases: 0,
+          totalTexts: 0,
+          vocabularyDensity: 0,
+          readabilityIndex: null,
+          avgWordsPerSentence: 0,
+          phraseGraphData: { nodes: [], links: [] },
+        };
+      }
 
-    const totalTexts = items.length;
-    const { totalWords, ttr: vocabularyDensity } = ttrResult;
+      const totalTexts = items.length;
+      const { totalWords, ttr: vocabularyDensity } = ttrResult;
 
-    const sentences = SENTENCE_TOKENIZER.tokenize(combinedText);
-    const totalSentences = sentences.length > 0 ? sentences.length : 1;
-    const avgWordsPerSentence = totalWords > 0 && totalSentences > 0 ? totalWords / totalSentences : 0;
+      const sentences = SENTENCE_TOKENIZER.tokenize(combinedText);
+      const totalSentences = sentences.length > 0 ? sentences.length : 1;
+      const avgWordsPerSentence =
+        totalWords > 0 && totalSentences > 0 ? totalWords / totalSentences : 0;
 
-    // Calculate Readability using automated-readability
-    let readabilityIndex = null;
-    if (totalWords > 0 && totalSentences > 0) { // Ensure counts are valid
+      // Calculate Readability using automated-readability
+      let readabilityIndex = null;
+      if (totalWords > 0 && totalSentences > 0) {
+        // Ensure counts are valid
         try {
-            // Calculate character count (simple length)
-            const totalCharacters = combinedText.length;
+          // Calculate character count (simple length)
+          const totalCharacters = combinedText.length;
 
-            // Prepare counts object for the library
-            const counts = {
-                sentence: totalSentences,
-                word: totalWords,
-                character: totalCharacters
-            };
+          // Prepare counts object for the library
+          const counts = {
+            sentence: totalSentences,
+            word: totalWords,
+            character: totalCharacters,
+          };
 
-            // Calculate the Automated Readability Index (ARI)
-            readabilityIndex = automatedReadability(counts);
-
+          // Calculate the Automated Readability Index (ARI)
+          readabilityIndex = automatedReadability(counts);
         } catch (e) {
-            console.error("Error calculating automated readability:", e);
-            readabilityIndex = null; // Set to null if calculation fails
+          console.error("Error calculating automated readability:", e);
+          readabilityIndex = null; // Set to null if calculation fails
         }
-    }
+      }
 
-    // Phrase analysis (bigrams)
-    const wordsForPhrases = WORD_TOKENIZER.tokenize(combinedText.toLowerCase())
-      .map(cleanWord)
-      .filter(word => word.length > 1 && !STOP_WORDS.has(word));
-    const bigrams = natural.NGrams.bigrams(wordsForPhrases);
-    const phraseCounts = countItems(bigrams.map(bg => bg.join(' ')));
-    
-    const significantPhrases = sortEntries(phraseCounts)
-      .filter(([, count]) => count > 1) // Phrases appearing more than once
-      .slice(0, 50); // Top 50 significant phrases
+      // Phrase analysis (bigrams)
+      const wordsForPhrases = WORD_TOKENIZER.tokenize(
+        combinedText.toLowerCase()
+      )
+        .map(cleanWord)
+        .filter((word) => word.length > 1 && !STOP_WORDS.has(word));
+      const bigrams = natural.NGrams.bigrams(wordsForPhrases);
+      const phraseCounts = countItems(bigrams.map((bg) => bg.join(" ")));
 
-    const totalPhrases = significantPhrases.length;
+      const significantPhrases = sortEntries(phraseCounts)
+        .filter(([, count]) => count > 1) // Phrases appearing more than once
+        .slice(0, 50); // Top 50 significant phrases
 
-    const phraseNodes = significantPhrases.map(([phrase, count]) => ({
-      id: phrase,
-      name: phrase,
-      val: count, // Node size by frequency
-    }));
+      const totalPhrases = significantPhrases.length;
 
-    // --- Link Generation Logic ---
-    const phraseLinks = [];
-    // Link phrases that share at least one word (simple co-occurrence proxy)
-    // Note: This is a basic approach. More sophisticated methods could analyze proximity in the text.
-    const nodeMap = new Map(phraseNodes.map(node => [node.id, node])); // For quick lookup
+      const phraseNodes = significantPhrases.map(([phrase, count]) => ({
+        id: phrase,
+        name: phrase,
+        val: count, // Node size by frequency
+      }));
 
-    for (const node1 of phraseNodes) {
-        const words1 = new Set(node1.id.split(' ')); // Use Set for efficient lookup
+      // --- Link Generation Logic ---
+      const phraseLinks = [];
+      // Link phrases that share at least one word (simple co-occurrence proxy)
+      // Note: This is a basic approach. More sophisticated methods could analyze proximity in the text.
+      const nodeMap = new Map(phraseNodes.map((node) => [node.id, node])); // For quick lookup
+
+      for (const node1 of phraseNodes) {
+        const words1 = new Set(node1.id.split(" ")); // Use Set for efficient lookup
 
         for (const node2 of phraseNodes) {
-            const words2 = node2.id.split(' ');
+          const words2 = node2.id.split(" ");
 
-            // Check if any word from phrase 2 exists in phrase 1
-            if (words2.some(w => words1.has(w))) {
-                 // Add link, value could represent combined frequency or a fixed value
-                 phraseLinks.push({
-                     source: node1.id,
-                     target: node2.id,
-                     // Optional: Add value based on node frequencies for potential link styling
-                     value: (node1.val + node2.val) / 2 // Example: average frequency
-                 });
-            }
+          // Check if any word from phrase 2 exists in phrase 1
+          if (words2.some((w) => words1.has(w))) {
+            // Add link, value could represent combined frequency or a fixed value
+            phraseLinks.push({
+              source: node1.id,
+              target: node2.id,
+              // Optional: Add value based on node frequencies for potential link styling
+              value: (node1.val + node2.val) / 2, // Example: average frequency
+            });
+          }
         }
-    }
-    // --- End Link Generation Logic ---
+      }
+      // --- End Link Generation Logic ---
 
+      return {
+        totalWords,
+        totalPhrases,
+        totalTexts,
+        vocabularyDensity,
+        readabilityIndex, // This now holds the ARI score
+        avgWordsPerSentence,
+        phraseGraphData: { nodes: phraseNodes, links: phraseLinks }, // Include graph data with generated links
+      };
+    },
+    []
+  ); // Depends on stable constants.
 
-    return {
-      totalWords,
-      totalPhrases,
-      totalTexts,
-      vocabularyDensity,
-      readabilityIndex, // This now holds the ARI score
-      avgWordsPerSentence,
-      phraseGraphData: { nodes: phraseNodes, links: phraseLinks } // Include graph data with generated links
-    };
-  }, []); // Depends on stable constants.
+  // --- Word-by-Word Analysis Function ---
+  const calculateWordByWordAnalysis = useCallback((text) => {
+    if (!text || text.trim() === "") return [];
+    // Tokenize and keep track of positions
+    const words = WORD_TOKENIZER.tokenize(text);
+    const wordMap = {};
+    words.forEach((word, idx) => {
+      const cleaned = cleanWord(word);
+      if (!cleaned) return;
+      if (!wordMap[cleaned]) {
+        wordMap[cleaned] = { word: cleaned, positions: [], count: 0 };
+      }
+      wordMap[cleaned].positions.push(idx);
+      wordMap[cleaned].count += 1;
+    });
+    // Convert to array and sort by first position
+    return Object.values(wordMap).sort(
+      (a, b) => a.positions[0] - b.positions[0]
+    );
+  }, []);
 
   // --- Main Effect ---
   useEffect(() => {
@@ -496,13 +621,14 @@ const useTextAnalysis = (data) => {
       setTopicModelData([]);
       setOverviewData(null); // Reset overview
       setPhraseLinkData({ nodes: [], links: [] }); // Reset phrase links
+      setWordByWordData([]); // Reset word-by-word data
       setIsLoading(false); // Ensure loading is off
       return; // Exit early
     }
 
     // Start loading state
     setIsLoading(true);
-    
+
     try {
       // Perform calculations using the memoized 'allText' where appropriate
       const frequency = calculateWordFrequency(processedDataItems);
@@ -511,9 +637,14 @@ const useTextAnalysis = (data) => {
       const ttr = calculateTTR(allText); // Calculate TTR first
       const topics = calculateTopicModeling(allText);
       // Calculate overview summary, passing calculated TTR data
-      const summary = calculateOverviewSummary(processedDataItems, allText, ttr);
+      const summary = calculateOverviewSummary(
+        processedDataItems,
+        allText,
+        ttr
+      );
       // Calculate initial empty concordance - important not to trigger state update loop here
-      const initialConcordance = calculateConcordance(allText, '');
+      const initialConcordance = calculateConcordance(allText, "");
+      const wordByWord = calculateWordByWordAnalysis(allText);
 
       // Update all states *after* calculations are done
       setWordFrequencyData(frequency);
@@ -524,28 +655,41 @@ const useTextAnalysis = (data) => {
       setOverviewData(summary); // Set overview state
       setPhraseLinkData(summary.phraseGraphData); // Set phrase link state
       setConcordanceData(initialConcordance); // Set initial empty concordance
-
+      setWordByWordData(wordByWord);
     } catch (error) {
-        console.error("Error during initial text analysis processing:", error);
-        // Optionally set an error state here
+      console.error("Error during initial text analysis processing:", error);
+      // Optionally set an error state here
     } finally {
-        // Stop loading state regardless of success or error
-        setIsLoading(false);
+      // Stop loading state regardless of success or error
+      setIsLoading(false);
     }
     // Dependencies: Only 'data' and the memoized 'allText'.
     // The calculation functions are stable due to useCallback and stable dependencies.
-  }, [data, allText, calculateWordFrequency, calculateSentimentAnalysis, calculateRelationships, calculateConcordance, calculateTTR, calculateTopicModeling, calculateOverviewSummary]); // Add calculateOverviewSummary dependency
+  }, [
+    data,
+    allText,
+    calculateWordFrequency,
+    calculateSentimentAnalysis,
+    calculateRelationships,
+    calculateConcordance,
+    calculateTTR,
+    calculateTopicModeling,
+    calculateOverviewSummary,
+    calculateWordByWordAnalysis,
+  ]); // Add calculateOverviewSummary and calculateWordByWordAnalysis dependencies
 
   // --- Concordance Search Function ---
-  const searchConcordance = useCallback((term) => {
-     // No need to recalculate allText, use the memoized version
-     if (!allText) return; // Exit if no text
-     // Calculate new concordance based on the term
-     const results = calculateConcordance(allText, term);
-     // Update only the concordance state
-     setConcordanceData(results);
-  }, [allText, calculateConcordance]); // Depends on memoized text and stable calculation function
-
+  const searchConcordance = useCallback(
+    (term) => {
+      // No need to recalculate allText, use the memoized version
+      if (!allText) return; // Exit if no text
+      // Calculate new concordance based on the term
+      const results = calculateConcordance(allText, term);
+      // Update only the concordance state
+      setConcordanceData(results);
+    },
+    [allText, calculateConcordance]
+  ); // Depends on memoized text and stable calculation function
 
   return {
     overviewData, // Return overview data
@@ -556,6 +700,7 @@ const useTextAnalysis = (data) => {
     ttrData,
     topicModelData,
     phraseLinkData, // Return phrase link data
+    wordByWordData, // Add word-by-word data
     isLoading,
     searchConcordance,
   };
