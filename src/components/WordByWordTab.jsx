@@ -61,7 +61,7 @@ const WordByWordTab = ({ wordByWordData, isLoading }) => {
           </TableHead>
           <TableBody>
             {wordByWordData.map((row, idx) => (
-              <TableRow key={row.word + idx}>
+              <TableRow key={row.word}>
                 <TableCell>{row.word}</TableCell>
                 <TableCell align="right">{row.count}</TableCell>
                 <TableCell>
