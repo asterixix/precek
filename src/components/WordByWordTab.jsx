@@ -9,6 +9,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import LinearProgress from "@mui/material/LinearProgress";
+import PropTypes from "prop-types";
 
 const WordByWordTab = ({ wordByWordData, isLoading }) => {
   if (isLoading) {
@@ -94,6 +95,17 @@ const WordByWordTab = ({ wordByWordData, isLoading }) => {
       </TableContainer>
     </Box>
   );
+};
+
+WordByWordTab.propTypes = {
+  wordByWordData: PropTypes.arrayOf(
+    PropTypes.shape({
+      word: PropTypes.string.isRequired,
+      positions: PropTypes.arrayOf(PropTypes.number).isRequired,
+      count: PropTypes.number.isRequired,
+    })
+  ).isRequired,
+  isLoading: PropTypes.bool.isRequired,
 };
 
 export default WordByWordTab;
