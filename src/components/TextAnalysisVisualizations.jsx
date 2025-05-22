@@ -20,6 +20,7 @@ import TtrAnalysisTab from './TtrAnalysisTab';
 import ConcordanceTab from './ConcordanceTab';
 import TopicModelingTab from './TopicModelingTab';
 import PhrasesLinkTab from './PhrasesLinkTab'; // Import new component
+import WordByWordTab from './WordByWordTab'; // Import the new component
 
 // Reusable TabPanel component
 function TabPanel(props) {
@@ -51,6 +52,7 @@ const TextAnalysisVisualizations = ({ data, selectedTextId }) => {
     concordanceData,
     topicModelData,
     phraseLinkData, // Should now be populated by the hook
+    wordByWordData,
     isLoading,
     searchConcordance,
   } = useTextAnalysis(data);
@@ -118,6 +120,7 @@ const TextAnalysisVisualizations = ({ data, selectedTextId }) => {
           <Tab label='Concordance' id='tab-5' aria-controls='tabpanel-5' />
           <Tab label='Topics' id='tab-6' aria-controls='tabpanel-6' />
           <Tab label='Phrase Links' id='tab-7' aria-controls='tabpanel-7' />
+          <Tab label='Word by Word Analysis' id='tab-8' aria-controls='tabpanel-8' />
         </Tabs>
       </Box>
 
@@ -171,6 +174,10 @@ const TextAnalysisVisualizations = ({ data, selectedTextId }) => {
       <TabPanel value={activeTab} index={7}>
         {/* Pass phraseLinkData */}
         <PhrasesLinkTab phraseLinkData={phraseLinkData} isLoading={isLoading} />
+      </TabPanel>
+
+      <TabPanel value={activeTab} index={8}>
+        <WordByWordTab wordByWordData={wordByWordData} isLoading={isLoading} />
       </TabPanel>
     </Box>
   );

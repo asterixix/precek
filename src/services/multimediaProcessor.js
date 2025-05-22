@@ -429,8 +429,8 @@ export const processVideo = async (
           // 'X-Title': $YOUR_SITE_NAME, // Optional
         };
 
-         // Limit the number of frames to process (e.g., first 5)
-        const framesToProcess = imageFramesData.slice(0, 5); 
+        // Limit the number of frames to process (e.g., first 5)
+        const framesToProcess = imageFramesData.slice(0, 5);
         console.log(`Sending ${framesToProcess.length} frames for analysis...`);
 
         for (const frame of framesToProcess) {
@@ -613,7 +613,7 @@ export const processVideo = async (
       `Failed to save video processing results to DB for ${sourceName}:`,
       dbError
     );
-    
+
     return {
       success: false,
       message: `Failed to save video processing results to database for ${sourceName}.`,
