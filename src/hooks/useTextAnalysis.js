@@ -680,12 +680,22 @@ const useTextAnalysis = (data) => {
     });
 
     // Calculate overall trending words across all documents
+    // Precompute first-segment frequencies for O(1) lookups
+    const firstSegmentFrequencies = {};
+    Object.entries(allWordEvolution).forEach(([word, occurrences]) => {
+      occurrences.forEach(occ => {
+        if (occ.segmentIndex === 0) {
+          firstSegmentFrequencies[`${occ.documentId}-${word}`] = occ.frequency;
+        }
+      });
+    });
+
     const overallTrending = Object.entries(allWordEvolution)
       .map(([word, occurrences]) => {
         const avgChange = occurrences.reduce((sum, occ, idx) => {
           if (idx === 0) return 0;
-          const prevOcc = occurrences.find(o => o.documentId === occ.documentId && o.segmentIndex === 0);
-          return sum + (occ.frequency - (prevOcc?.frequency || 0));
+          const prevFrequency = firstSegmentFrequencies[`${occ.documentId}-${word}`] || 0;
+          return sum + (occ.frequency - prevFrequency);
         }, 0) / occurrences.length;
 
         return {
