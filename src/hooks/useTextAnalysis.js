@@ -122,6 +122,7 @@ const useTextAnalysis = (data) => {
     links: [],
   }); // Add state for phrase links
   const [wordByWordData, setWordByWordData] = useState([]); // Add state for word-by-word analysis
+  const [trendsData, setTrendsData] = useState({}); // Add state for trends data
   const [isLoading, setIsLoading] = useState(false);
 
   // Memoize the combined text to avoid recalculating it multiple times
@@ -586,6 +587,124 @@ const useTextAnalysis = (data) => {
     },
     []
   ); // Depends on stable constants.
+  
+  // --- Trends Analysis Function ---
+  const calculateTrends = useCallback((items) => {
+    if (!items || items.length === 0) return {};
+
+    const documentAnalysis = [];
+    const allWordEvolution = {};
+
+    // Analyze each document separately by dividing it into 4 text segments
+    items.forEach((item, itemIndex) => {
+      const text = item.originalText;
+      if (!text || text.trim() === "") return;
+
+      // Tokenize the entire text
+      const words = WORD_TOKENIZER.tokenize(text.toLowerCase())
+        .map(cleanWord)
+        .filter(word => word.length > 2 && /^[a-z]+$/i.test(word) && !STOP_WORDS.has(word));
+
+      if (words.length === 0) return;
+
+      // Divide text into 4 segments (beginning, early-middle, late-middle, end)
+      const segmentSize = Math.max(1, Math.floor(words.length / 4));
+      const textSegments = [];
+      
+      for (let i = 0; i < 4; i++) {
+        const startIdx = i * segmentSize;
+        const endIdx = i === 3 ? words.length : (i + 1) * segmentSize; // Last segment gets remaining words
+        textSegments.push(words.slice(startIdx, endIdx));
+      }
+
+      // Analyze word frequency in each text segment
+      const segmentAnalysis = textSegments.map((segmentWords, segmentIndex) => {
+        const wordFrequency = countItems(segmentWords);
+        const topWords = sortEntries(wordFrequency)
+          .slice(0, 10)
+          .map(([word, count]) => ({
+            word,
+            count,
+            frequency: segmentWords.length > 0 ? count / segmentWords.length : 0
+          }));
+
+        return {
+          segmentId: segmentIndex,
+          position: `${Math.round((segmentIndex / 3) * 100)}%`, // 0%, 33%, 67%, 100%
+          topWords,
+          totalWords: segmentWords.length,
+          uniqueWords: new Set(segmentWords).size
+        };
+      });
+
+      // Track word evolution within this document
+      const documentWordEvolution = {};
+      segmentAnalysis.forEach((segment, segmentIndex) => {
+        segment.topWords.forEach(({ word, frequency }) => {
+          if (!documentWordEvolution[word]) {
+            documentWordEvolution[word] = new Array(4).fill(0);
+          }
+          documentWordEvolution[word][segmentIndex] = frequency;
+
+          if (!allWordEvolution[word]) {
+            allWordEvolution[word] = [];
+          }
+          allWordEvolution[word].push({
+            documentId: item.id,
+            documentName: item.originalName,
+            segmentIndex,
+            frequency
+          });
+        });
+      });
+
+      // Calculate trending words for this document
+      const documentTrendingWords = Object.entries(documentWordEvolution)
+        .map(([word, frequencies]) => {
+          const start = frequencies[0];
+          const end = frequencies[frequencies.length - 1];
+          const change = end - start;
+          const avgFrequency = frequencies.reduce((sum, f) => sum + f, 0) / frequencies.length;
+          return { word, change, frequencies, avgFrequency };
+        })
+        .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+        .slice(0, 10);
+
+      documentAnalysis.push({
+        documentId: item.id,
+        documentName: item.originalName,
+        segments: segmentAnalysis,
+        trendingWords: documentTrendingWords,
+        totalWords: words.length
+      });
+    });
+
+    // Calculate overall trending words across all documents
+    const overallTrending = Object.entries(allWordEvolution)
+      .map(([word, occurrences]) => {
+        const avgChange = occurrences.reduce((sum, occ, idx) => {
+          if (idx === 0) return 0;
+          const prevOcc = occurrences.find(o => o.documentId === occ.documentId && o.segmentIndex === 0);
+          return sum + (occ.frequency - (prevOcc?.frequency || 0));
+        }, 0) / occurrences.length;
+
+        return {
+          word,
+          avgChange,
+          totalOccurrences: occurrences.length,
+          documents: [...new Set(occurrences.map(o => o.documentId))].length
+        };
+      })
+      .sort((a, b) => Math.abs(b.avgChange) - Math.abs(a.avgChange))
+      .slice(0, 15);
+
+    return {
+      documents: documentAnalysis,
+      overallTrending,
+      totalDocuments: documentAnalysis.length,
+      segmentLabels: ['Beginning', 'Early Middle', 'Late Middle', 'End']
+    };
+  }, []);
 
   // --- Word-by-Word Analysis Function ---
   const calculateWordByWordAnalysis = useCallback((text) => {
@@ -622,6 +741,7 @@ const useTextAnalysis = (data) => {
       setOverviewData(null); // Reset overview
       setPhraseLinkData({ nodes: [], links: [] }); // Reset phrase links
       setWordByWordData([]); // Reset word-by-word data
+      setTrendsData({}); // Reset trends data
       setIsLoading(false); // Ensure loading is off
       return; // Exit early
     }
@@ -645,6 +765,7 @@ const useTextAnalysis = (data) => {
       // Calculate initial empty concordance - important not to trigger state update loop here
       const initialConcordance = calculateConcordance(allText, "");
       const wordByWord = calculateWordByWordAnalysis(allText);
+      const trends = calculateTrends(processedDataItems); // Calculate trends data
 
       // Update all states *after* calculations are done
       setWordFrequencyData(frequency);
@@ -656,6 +777,7 @@ const useTextAnalysis = (data) => {
       setPhraseLinkData(summary.phraseGraphData); // Set phrase link state
       setConcordanceData(initialConcordance); // Set initial empty concordance
       setWordByWordData(wordByWord);
+      setTrendsData(trends);
     } catch (error) {
       console.error("Error during initial text analysis processing:", error);
       // Optionally set an error state here
@@ -676,6 +798,7 @@ const useTextAnalysis = (data) => {
     calculateTopicModeling,
     calculateOverviewSummary,
     calculateWordByWordAnalysis,
+    calculateTrends,
   ]); // Add calculateOverviewSummary and calculateWordByWordAnalysis dependencies
 
   // --- Concordance Search Function ---
@@ -701,6 +824,7 @@ const useTextAnalysis = (data) => {
     topicModelData,
     phraseLinkData, // Return phrase link data
     wordByWordData, // Add word-by-word data
+    trendsData,
     isLoading,
     searchConcordance,
   };

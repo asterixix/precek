@@ -21,6 +21,7 @@ import ConcordanceTab from './ConcordanceTab';
 import TopicModelingTab from './TopicModelingTab';
 import PhrasesLinkTab from './PhrasesLinkTab'; // Import new component
 import WordByWordTab from './WordByWordTab'; // Import the new component
+import TrendsTab from './TrendsTab'; // Import the new TrendsTab component
 
 // Reusable TabPanel component
 function TabPanel(props) {
@@ -55,6 +56,7 @@ const TextAnalysisVisualizations = ({ data, selectedTextId }) => {
     wordByWordData,
     isLoading,
     searchConcordance,
+    trendsData, // Add trendsData to destructuring
   } = useTextAnalysis(data);
 
   const handleTabChange = (event, newValue) => {
@@ -121,6 +123,7 @@ const TextAnalysisVisualizations = ({ data, selectedTextId }) => {
           <Tab label='Topics' id='tab-6' aria-controls='tabpanel-6' />
           <Tab label='Phrase Links' id='tab-7' aria-controls='tabpanel-7' />
           <Tab label='Word by Word Analysis' id='tab-8' aria-controls='tabpanel-8' />
+          <Tab label='Trends' id='tab-9' aria-controls='tabpanel-9' /> {/* Add new Tab for Trends */}
         </Tabs>
       </Box>
 
@@ -178,6 +181,10 @@ const TextAnalysisVisualizations = ({ data, selectedTextId }) => {
 
       <TabPanel value={activeTab} index={8}>
         <WordByWordTab wordByWordData={wordByWordData} isLoading={isLoading} />
+      </TabPanel>
+
+      <TabPanel value={activeTab} index={9}>
+        <TrendsTab trendsData={trendsData} isLoading={isLoading} />
       </TabPanel>
     </Box>
   );
