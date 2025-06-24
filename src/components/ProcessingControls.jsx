@@ -80,7 +80,29 @@ const ProcessingControls = ({
                 placeholder="Enter text to process"
                 variant="outlined"
                 disabled={isProcessing || !keysConfigured}
-                sx={{ '& .MuiOutlinedInput-root': { padding: '12px', fontFamily: 'inherit' } }}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': { 
+                    padding: '12px', 
+                    fontFamily: 'inherit',
+                    '& fieldset': {
+                      borderColor: 'var(--border)',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'var(--ring)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: 'var(--primary)',
+                      borderWidth: '2px',
+                    },
+                    '& textarea': {
+                      color: 'var(--foreground)',
+                      '&::placeholder': {
+                        color: 'var(--muted-foreground)',
+                        opacity: 0.8,
+                      },
+                    },
+                  },
+                }}
               />
               <Button
                 variant="contained"
