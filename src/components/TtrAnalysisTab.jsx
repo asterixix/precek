@@ -30,6 +30,11 @@ const TtrAnalysisTab = ({ ttrData, isLoading }) => {
     borderRadius: theme.shape.borderRadius, // Use theme border radius
   };
 
+  // Theme-aware background color for non-primary cards
+  const cardBackgroundColor = theme.palette.mode === 'dark' 
+    ? theme.palette.grey[100] // Dark mode: use a lighter shade
+    : theme.palette.grey[100]; // Light mode: use original
+
   return (
     <Card elevation={2}>
       <CardHeader
@@ -48,13 +53,13 @@ const TtrAnalysisTab = ({ ttrData, isLoading }) => {
           <Box>
             <Grid container spacing={3} justifyContent="center" alignItems="stretch"> {/* Use alignItems stretch */}
               <Grid item xs={12} sm={4}>
-                <Paper elevation={0} sx={{ ...paperStyle, backgroundColor: theme.palette.grey[100] }}> {/* Light grey background */}
+                <Paper elevation={0} sx={{ ...paperStyle, backgroundColor: cardBackgroundColor }}>
                   <Typography variant="overline" color="text.secondary" gutterBottom>Total Words</Typography>
                   <Typography variant="h4" component="div">{totalWords}</Typography>
                 </Paper>
               </Grid>
               <Grid item xs={12} sm={4}>
-                <Paper elevation={0} sx={{ ...paperStyle, backgroundColor: theme.palette.grey[100] }}> {/* Light grey background */}
+                <Paper elevation={0} sx={{ ...paperStyle, backgroundColor: cardBackgroundColor }}>
                   <Typography variant="overline" color="text.secondary" gutterBottom>Unique Words</Typography>
                   <Typography variant="h4" component="div">{uniqueWords}</Typography>
                 </Paper>
