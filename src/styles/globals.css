@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap'); /* Import Noto Sans */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -63,19 +63,14 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans); /* Ensure body also uses the variable */
+    margin: 0;
+    padding: 0;
   }
 
-  * {
-    @apply border-border;
-  }
-
-  /* --- Accessibility Enhancement: Focus Visible --- */
-  /* Add a clear outline for keyboard focus, respecting theme colors */
+  /* Focus visible styles for accessibility */
   *:focus-visible {
-    @apply outline-none ring-2 ring-offset-2;
-    outline-color: transparent; /* Fallback */
-    ring-color: hsl(var(--ring)); /* Use Tailwind ring color variable */
-    ring-offset-color: hsl(var(--background)); /* Use Tailwind background color variable */
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 
   /* Ensure high-contrast focus ring in forced colors mode (Windows High Contrast) */
